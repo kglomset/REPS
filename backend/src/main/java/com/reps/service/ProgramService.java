@@ -1,0 +1,258 @@
+package com.reps.service;
+
+import com.reps.dto.request.CreateProgramRequest;
+import com.reps.dto.response.*;
+import com.reps.entity.*;
+import com.reps.enums.FitnessLevel;
+import com.reps.enums.TrainingGoal;
+import com.reps.enums.TrainingMethod;
+import com.reps.repository.*;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.*;
+
+@Service
+@RequiredArgsConstructor
+public class ProgramService {
+
+    private final TrainingProgramRepository programRepo;
+    private final WorkoutSessionRepository sessionRepo;
+    private final UserRepository userRepo;
+    private final ExerciseRepository exerciseRepo;
+    private final MuscleGroupRepository muscleGroupRepo;
+
+    // ── Volume guidelines (sets per muscle group per week) ──────────────────
+    private static final Map<FitnessLevel, int[]> VOLUME_RANGE = Map.of(
+            FitnessLevel.BEGINNER,     new int[]{6,  10},
+            FitnessLevel.INTERMEDIATE, new int[]{10, 14},
+            FitnessLevel.ADVANCED,     new int[]{14, 20}
+    );
+
+    @Transactional
+    public ProgramResponse createProgram(Long userId, CreateProgramRequest req) {
+        User user = userRepo.findById(userId)
+                .orElseThrow(() -> new NoSuchElementException("User not found"));
+
+        // Deactivate existing active program
+        programRepo.findByUserIdAndActiveTrue(userId)
+                .ifPresent(p -> { p.setActive(false); programRepo.save(p); });
+
+        TrainingProgram program = TrainingProgram.builder()
+                .user(user)
+                .name(req.getName())
+                .fitnessLevel(req.getFitnessLevel())
+                .goal(req.getGoal())
+                .strengthDaysPerWeek(req.getStrengthDaysPerWeek())
+                .cardioDaysPerWeek(req.getCardioDaysPerWeek())
+                .cardioType(req.getCardioType())
+                .active(true)
+                .build();
+
+        generateWorkoutTemplates(program, req);
+        return toResponse(programRepo.save(program));
+    }
+
+    public List<ProgramResponse> getUserPrograms(Long userId) {
+        return programRepo.findByUserId(userId).stream()
+                .map(this::toResponseSummary)
+                .toList();
+    }
+
+    public ProgramResponse getProgram(Long userId, Long programId) {
+        return programRepo.findByIdAndUserIdWithDetails(programId, userId)
+                .map(this::toResponse)
+                .orElseThrow(() -> new NoSuchElementException("Program not found"));
+    }
+
+    public Optional<ProgramResponse> getActiveProgram(Long userId) {
+        return programRepo.findByUserIdAndActiveTrue(userId).map(this::toResponse);
+    }
+
+    @Transactional
+    public ProgramResponse activateProgram(Long userId, Long programId) {
+        // Deactivate all programs for this user
+        programRepo.findByUserId(userId).forEach(p -> {
+            if (p.getActive()) { p.setActive(false); programRepo.save(p); }
+        });
+        // Activate the target program
+        TrainingProgram target = programRepo.findByIdAndUserIdWithDetails(programId, userId)
+                .orElseThrow(() -> new NoSuchElementException("Program not found"));
+        target.setActive(true);
+        return toResponse(programRepo.save(target));
+    }
+
+    // ── Program generation ───────────────────────────────────────────────────
+
+    /**
+     * Generates workout templates based on fitness level, goal, and training days.
+     * Uses a Push/Pull/Legs or Upper/Lower split depending on days per week.
+     */
+    private void generateWorkoutTemplates(TrainingProgram program, CreateProgramRequest req) {
+        int days = req.getStrengthDaysPerWeek();
+        List<WorkoutTemplate> templates = new ArrayList<>();
+
+        List<String> dayNames = switch (days) {
+            case 2 -> List.of("Full Body A", "Full Body B");
+            case 3 -> List.of("Push", "Pull", "Legs");
+            case 4 -> List.of("Upper A", "Lower A", "Upper B", "Lower B");
+            case 5 -> List.of("Push", "Pull", "Legs", "Upper", "Lower");
+            case 6 -> List.of("Push A", "Pull A", "Legs A", "Push B", "Pull B", "Legs B");
+            default -> List.of("Full Body A", "Full Body B");
+        };
+
+        int[] targetReps = repRange(req.getGoal());
+        int targetRestSeconds = req.getGoal() == TrainingGoal.STRENGTH ? 240 : 90;
+        int setsPerExercise = req.getGoal() == TrainingGoal.STRENGTH ? 4 : 3;
+
+        // Distribute training days across the week (Mon=0, skip weekends for >4 days)
+        int[] dayIndices = spreadDays(days);
+
+        for (int i = 0; i < dayNames.size(); i++) {
+            WorkoutTemplate template = WorkoutTemplate.builder()
+                    .program(program)
+                    .name(dayNames.get(i))
+                    .dayIndex(dayIndices[i])
+                    .build();
+
+            // Attach placeholder exercises based on split day type
+            List<Long> exerciseIds = selectExercisesForDay(dayNames.get(i), req.getFitnessLevel());
+            int order = 0;
+            for (Long exerciseId : exerciseIds) {
+                exerciseRepo.findById(exerciseId).ifPresent(ex -> {
+                    template.getExercises().add(WorkoutTemplateExercise.builder()
+                            .template(template)
+                            .exercise(ex)
+                            .exerciseOrder(template.getExercises().size())
+                            .sets(setsPerExercise)
+                            .repsMin(targetReps[0])
+                            .repsMax(targetReps[1])
+                            .restSeconds(targetRestSeconds)
+                            .trainingMethod(TrainingMethod.STRAIGHT_SETS)
+                            .build());
+                });
+            }
+            templates.add(template);
+        }
+        program.setWorkoutTemplates(templates);
+    }
+
+    private int[] repRange(TrainingGoal goal) {
+        return goal == TrainingGoal.STRENGTH ? new int[]{3, 6} : new int[]{8, 12};
+    }
+
+    private int[] spreadDays(int count) {
+        // Spread evenly across Mon-Sun with built-in rest
+        return switch (count) {
+            case 2 -> new int[]{0, 3};
+            case 3 -> new int[]{0, 2, 4};
+            case 4 -> new int[]{0, 1, 3, 4};
+            case 5 -> new int[]{0, 1, 2, 4, 5};
+            case 6 -> new int[]{0, 1, 2, 3, 4, 5};
+            default -> new int[]{0, 3};
+        };
+    }
+
+    /**
+     * Returns exercise IDs seeded in V3 migration, selected for the day type.
+     * Falls back to first N available if seeds not yet loaded.
+     */
+    private List<Long> selectExercisesForDay(String dayName, FitnessLevel level) {
+        String lower = dayName.toLowerCase();
+        if (lower.contains("full body")) {
+            return exerciseRepo.findByCreatedByIsNull().stream()
+                    .limit(level == FitnessLevel.BEGINNER ? 4 : 6)
+                    .map(Exercise::getId)
+                    .toList();
+        } else if (lower.contains("push")) {
+            return exercisesByMuscles(List.of("chest", "shoulders", "triceps"),
+                    level == FitnessLevel.BEGINNER ? 3 : 5);
+        } else if (lower.contains("pull")) {
+            return exercisesByMuscles(List.of("back", "biceps", "rear-delts"),
+                    level == FitnessLevel.BEGINNER ? 3 : 5);
+        } else if (lower.contains("legs") || lower.contains("lower")) {
+            return exercisesByMuscles(List.of("quads", "hamstrings", "glutes", "calves"),
+                    level == FitnessLevel.BEGINNER ? 3 : 5);
+        } else if (lower.contains("upper")) {
+            return exercisesByMuscles(List.of("chest", "back", "shoulders"),
+                    level == FitnessLevel.BEGINNER ? 3 : 5);
+        }
+        return exerciseRepo.findByCreatedByIsNull().stream().limit(4).map(Exercise::getId).toList();
+    }
+
+    private List<Long> exercisesByMuscles(List<String> slugs, int limit) {
+        return exerciseRepo.findByCreatedByIsNull().stream()
+                .filter(e -> e.getMuscles().stream()
+                        .anyMatch(m -> slugs.contains(m.getMuscleGroup().getSlug())))
+                .limit(limit)
+                .map(Exercise::getId)
+                .toList();
+    }
+
+    // ── Mappers ──────────────────────────────────────────────────────────────
+
+    ProgramResponse toResponse(TrainingProgram p) {
+        return ProgramResponse.builder()
+                .id(p.getId())
+                .name(p.getName())
+                .fitnessLevel(p.getFitnessLevel())
+                .goal(p.getGoal())
+                .strengthDaysPerWeek(p.getStrengthDaysPerWeek())
+                .cardioDaysPerWeek(p.getCardioDaysPerWeek())
+                .cardioType(p.getCardioType())
+                .active(p.getActive())
+                .createdAt(p.getCreatedAt())
+                .workoutTemplates(p.getWorkoutTemplates().stream()
+                        .map(this::templateToResponse)
+                        .toList())
+                .build();
+    }
+
+    ProgramResponse toResponseSummary(TrainingProgram p) {
+        return ProgramResponse.builder()
+                .id(p.getId()).name(p.getName())
+                .fitnessLevel(p.getFitnessLevel()).goal(p.getGoal())
+                .strengthDaysPerWeek(p.getStrengthDaysPerWeek())
+                .cardioDaysPerWeek(p.getCardioDaysPerWeek())
+                .cardioType(p.getCardioType())
+                .active(p.getActive()).createdAt(p.getCreatedAt())
+                .workoutTemplates(List.of())
+                .build();
+    }
+
+    WorkoutTemplateResponse templateToResponse(WorkoutTemplate t) {
+        return WorkoutTemplateResponse.builder()
+                .id(t.getId()).name(t.getName()).dayIndex(t.getDayIndex())
+                .exercises(t.getExercises().stream().map(this::templateExToResponse).toList())
+                .build();
+    }
+
+    WorkoutTemplateExerciseResponse templateExToResponse(WorkoutTemplateExercise te) {
+        return WorkoutTemplateExerciseResponse.builder()
+                .id(te.getId())
+                .exercise(exerciseToResponse(te.getExercise()))
+                .exerciseOrder(te.getExerciseOrder())
+                .sets(te.getSets())
+                .repsMin(te.getRepsMin())
+                .repsMax(te.getRepsMax())
+                .restSeconds(te.getRestSeconds())
+                .trainingMethod(te.getTrainingMethod())
+                .supersetGroupId(te.getSupersetGroupId())
+                .build();
+    }
+
+    ExerciseResponse exerciseToResponse(Exercise e) {
+        return ExerciseResponse.builder()
+                .id(e.getId()).name(e.getName())
+                .description(e.getDescription()).cues(e.getCues())
+                .imageUrl(e.getImageUrl())
+                .muscles(e.getMuscles().stream()
+                        .map(m -> ExerciseMuscleResponse.builder()
+                                .muscleGroupId(m.getMuscleGroup().getId())
+                                .muscleGroupName(m.getMuscleGroup().getName())
+                                .role(m.getRole()).build())
+                        .toList())
+                .build();
+    }
+}

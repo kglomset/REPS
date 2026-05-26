@@ -1,0 +1,51 @@
+spring:
+  application:
+    name: reps-backend
+  datasource:
+    # SPRING_DATASOURCE_URL wins when set (local docker-compose).
+    # On Render, DATABASE_HOST/PORT/NAME are injected individually.
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://${DATABASE_HOST:localhost}:${DATABASE_PORT:5432}/${DATABASE_NAME:reps}}
+    username: ${SPRING_DATASOURCE_USERNAME:reps}
+    password: ${SPRING_DATASOURCE_PASSWORD:reps_secret}
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+    deserialization:
+      fail-on-unknown-properties: false
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
+server:
+  port: 8080
+  servlet:
+    context-path: /api
+
+jwt:
+  secret: ${JWT_SECRET:dev-secret-key-replace-in-production-min-256bit}
+  expiration-ms: ${JWT_EXPIRATION_MS:86400000}
+
+springdoc:
+  api-docs:
+    path: /docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
+
+logging:
+  level:
+    com.reps: ${LOGGING_LEVEL_COM_REPS:DEBUG}
+    org.springframework.security: INFO

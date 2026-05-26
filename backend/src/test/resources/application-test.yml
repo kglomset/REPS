@@ -1,0 +1,21 @@
+# Test-slice overrides — used by @WebMvcTest controller tests
+# No datasource / JPA / Flyway needed for controller slices (services are mocked)
+spring:
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+    deserialization:
+      fail-on-unknown-properties: false
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
+      - org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration
+      - org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration
+      # Prevents UserDetailsServiceAutoConfiguration from creating a second
+      # inMemoryUserDetailsManager alongside the @MockBean UserDetailsServiceImpl,
+      # which would cause a NoUniqueBeanDefinitionException in JwtAuthenticationFilter.
+      - org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration
+
+jwt:
+  secret: test-secret-key-for-unit-tests-only-256bit-long-enough
+  expiration-ms: 3600000

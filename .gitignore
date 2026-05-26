@@ -1,0 +1,27 @@
+# Java / Maven
+backend/target/
+backend/.mvn/wrapper/maven-wrapper.jar
+*.class
+*.jar
+!**/test-*.jar
+
+# Node / Expo
+mobile/node_modules/
+mobile/.expo/
+mobile/dist/
+mobile/build/
+mobile/.env.local
+
+# Environment
+.env
+*.env
+
+# IDEs
+.idea/
+.vscode/settings.json
+*.iml
+.DS_Store
+
+# Logs
+*.log
+logs/
