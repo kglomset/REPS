@@ -1,6 +1,4 @@
--- ============================================================
--- V9: Seed workout history and body weight logs for admin
--- ============================================================
+-- V9: Seed workout history and body weight logs for admin@reps.dev
 DO $$
 DECLARE
     admin_id    BIGINT;
@@ -12,7 +10,6 @@ BEGIN
     SELECT id INTO admin_id FROM users WHERE email = 'admin@reps.dev';
     IF admin_id IS NULL THEN RETURN; END IF;
 
-    -- Wipe existing session and body weight data
     DELETE FROM workout_sessions  WHERE user_id = admin_id;
     DELETE FROM body_weight_logs  WHERE user_id = admin_id;
 
@@ -81,29 +78,29 @@ BEGIN
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
             VALUES (se_id, 2, 10, 13, 8, '2026-02-23 08:58:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 10, 12, 9, '2026-02-23 08:61:00+00');
+            VALUES (se_id, 3, 10, 12, 9, '2026-02-23 09:01:00+00');
     END IF;
     SELECT id INTO ex_id FROM exercises WHERE name = 'Bicep Curl Barbell';
     IF ex_id IS NOT NULL THEN
         INSERT INTO session_exercises (session_id, exercise_id, exercise_order, training_method)
             VALUES (session_id, ex_id, 6, 'STRAIGHT_SETS') RETURNING id INTO se_id;
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 1, 35.0, 11, 7, '2026-02-23 08:66:00+00');
+            VALUES (se_id, 1, 35.0, 11, 7, '2026-02-23 09:06:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 2, 35.0, 10, 8, '2026-02-23 08:69:00+00');
+            VALUES (se_id, 2, 35.0, 10, 8, '2026-02-23 09:09:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 35.0, 9, 9, '2026-02-23 08:72:00+00');
+            VALUES (se_id, 3, 35.0, 9, 9, '2026-02-23 09:12:00+00');
     END IF;
     SELECT id INTO ex_id FROM exercises WHERE name = 'Tricep Pushdown Cable';
     IF ex_id IS NOT NULL THEN
         INSERT INTO session_exercises (session_id, exercise_id, exercise_order, training_method)
             VALUES (session_id, ex_id, 7, 'STRAIGHT_SETS') RETURNING id INTO se_id;
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 1, 30.0, 11, 7, '2026-02-23 08:77:00+00');
+            VALUES (se_id, 1, 30.0, 11, 7, '2026-02-23 09:17:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 2, 30.0, 10, 8, '2026-02-23 08:80:00+00');
+            VALUES (se_id, 2, 30.0, 10, 8, '2026-02-23 09:20:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 30.0, 9, 9, '2026-02-23 08:83:00+00');
+            VALUES (se_id, 3, 30.0, 9, 9, '2026-02-23 09:23:00+00');
     END IF;
 
     -- 2026-02-24 Lower A (session 1)
@@ -176,13 +173,13 @@ BEGIN
         INSERT INTO session_exercises (session_id, exercise_id, exercise_order, training_method)
             VALUES (session_id, ex_id, 6, 'STRAIGHT_SETS') RETURNING id INTO se_id;
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 1, 80, 14, 7, '2026-02-24 08:63:00+00');
+            VALUES (se_id, 1, 80, 14, 7, '2026-02-24 09:03:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 2, 80, 13, 8, '2026-02-24 08:66:00+00');
+            VALUES (se_id, 2, 80, 13, 8, '2026-02-24 09:06:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 80, 12, 9, '2026-02-24 08:69:00+00');
+            VALUES (se_id, 3, 80, 12, 9, '2026-02-24 09:09:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 4, 80, 11, 9, '2026-02-24 08:72:00+00');
+            VALUES (se_id, 4, 80, 11, 9, '2026-02-24 09:12:00+00');
     END IF;
 
     -- 2026-02-26 Upper B (session 1)
@@ -250,29 +247,29 @@ BEGIN
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
             VALUES (se_id, 2, 8, 13, 8, '2026-02-26 08:58:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 8, 12, 9, '2026-02-26 08:61:00+00');
+            VALUES (se_id, 3, 8, 12, 9, '2026-02-26 09:01:00+00');
     END IF;
     SELECT id INTO ex_id FROM exercises WHERE name = 'Incline Bicep Curl Dumbbell';
     IF ex_id IS NOT NULL THEN
         INSERT INTO session_exercises (session_id, exercise_id, exercise_order, training_method)
             VALUES (session_id, ex_id, 6, 'STRAIGHT_SETS') RETURNING id INTO se_id;
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 1, 14, 11, 7, '2026-02-26 08:66:00+00');
+            VALUES (se_id, 1, 14, 11, 7, '2026-02-26 09:06:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 2, 14, 10, 8, '2026-02-26 08:69:00+00');
+            VALUES (se_id, 2, 14, 10, 8, '2026-02-26 09:09:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 14, 9, 9, '2026-02-26 08:72:00+00');
+            VALUES (se_id, 3, 14, 9, 9, '2026-02-26 09:12:00+00');
     END IF;
     SELECT id INTO ex_id FROM exercises WHERE name = 'Tricep Press Dumbbell Supine';
     IF ex_id IS NOT NULL THEN
         INSERT INTO session_exercises (session_id, exercise_id, exercise_order, training_method)
             VALUES (session_id, ex_id, 7, 'STRAIGHT_SETS') RETURNING id INTO se_id;
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 1, 22, 11, 7, '2026-02-26 08:77:00+00');
+            VALUES (se_id, 1, 22, 11, 7, '2026-02-26 09:17:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 2, 22, 10, 8, '2026-02-26 08:80:00+00');
+            VALUES (se_id, 2, 22, 10, 8, '2026-02-26 09:20:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 22, 9, 9, '2026-02-26 08:83:00+00');
+            VALUES (se_id, 3, 22, 9, 9, '2026-02-26 09:23:00+00');
     END IF;
 
     -- 2026-02-27 Lower B (session 1)
@@ -345,13 +342,13 @@ BEGIN
         INSERT INTO session_exercises (session_id, exercise_id, exercise_order, training_method)
             VALUES (session_id, ex_id, 6, 'STRAIGHT_SETS') RETURNING id INTO se_id;
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 1, 50, 14, 7, '2026-02-27 08:63:00+00');
+            VALUES (se_id, 1, 50, 14, 7, '2026-02-27 09:03:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 2, 50, 13, 8, '2026-02-27 08:66:00+00');
+            VALUES (se_id, 2, 50, 13, 8, '2026-02-27 09:06:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 50, 12, 9, '2026-02-27 08:69:00+00');
+            VALUES (se_id, 3, 50, 12, 9, '2026-02-27 09:09:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 4, 50, 11, 9, '2026-02-27 08:72:00+00');
+            VALUES (se_id, 4, 50, 11, 9, '2026-02-27 09:12:00+00');
     END IF;
 
     -- 2026-03-02 Upper A (session 2)
@@ -419,29 +416,29 @@ BEGIN
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
             VALUES (se_id, 2, 10, 14, 8, '2026-03-02 08:58:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 10, 13, 9, '2026-03-02 08:61:00+00');
+            VALUES (se_id, 3, 10, 13, 9, '2026-03-02 09:01:00+00');
     END IF;
     SELECT id INTO ex_id FROM exercises WHERE name = 'Bicep Curl Barbell';
     IF ex_id IS NOT NULL THEN
         INSERT INTO session_exercises (session_id, exercise_id, exercise_order, training_method)
             VALUES (session_id, ex_id, 6, 'STRAIGHT_SETS') RETURNING id INTO se_id;
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 1, 35.0, 12, 7, '2026-03-02 08:66:00+00');
+            VALUES (se_id, 1, 35.0, 12, 7, '2026-03-02 09:06:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 2, 35.0, 11, 8, '2026-03-02 08:69:00+00');
+            VALUES (se_id, 2, 35.0, 11, 8, '2026-03-02 09:09:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 35.0, 10, 9, '2026-03-02 08:72:00+00');
+            VALUES (se_id, 3, 35.0, 10, 9, '2026-03-02 09:12:00+00');
     END IF;
     SELECT id INTO ex_id FROM exercises WHERE name = 'Tricep Pushdown Cable';
     IF ex_id IS NOT NULL THEN
         INSERT INTO session_exercises (session_id, exercise_id, exercise_order, training_method)
             VALUES (session_id, ex_id, 7, 'STRAIGHT_SETS') RETURNING id INTO se_id;
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 1, 30.0, 12, 7, '2026-03-02 08:77:00+00');
+            VALUES (se_id, 1, 30.0, 12, 7, '2026-03-02 09:17:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 2, 30.0, 11, 8, '2026-03-02 08:80:00+00');
+            VALUES (se_id, 2, 30.0, 11, 8, '2026-03-02 09:20:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 30.0, 10, 9, '2026-03-02 08:83:00+00');
+            VALUES (se_id, 3, 30.0, 10, 9, '2026-03-02 09:23:00+00');
     END IF;
 
     -- 2026-03-03 Lower A (session 2)
@@ -514,13 +511,13 @@ BEGIN
         INSERT INTO session_exercises (session_id, exercise_id, exercise_order, training_method)
             VALUES (session_id, ex_id, 6, 'STRAIGHT_SETS') RETURNING id INTO se_id;
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 1, 80, 15, 7, '2026-03-03 08:63:00+00');
+            VALUES (se_id, 1, 80, 15, 7, '2026-03-03 09:03:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 2, 80, 14, 8, '2026-03-03 08:66:00+00');
+            VALUES (se_id, 2, 80, 14, 8, '2026-03-03 09:06:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 80, 13, 9, '2026-03-03 08:69:00+00');
+            VALUES (se_id, 3, 80, 13, 9, '2026-03-03 09:09:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 4, 80, 12, 9, '2026-03-03 08:72:00+00');
+            VALUES (se_id, 4, 80, 12, 9, '2026-03-03 09:12:00+00');
     END IF;
 
     -- 2026-03-05 Upper B (session 2)
@@ -588,29 +585,29 @@ BEGIN
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
             VALUES (se_id, 2, 8, 14, 8, '2026-03-05 08:58:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 8, 13, 9, '2026-03-05 08:61:00+00');
+            VALUES (se_id, 3, 8, 13, 9, '2026-03-05 09:01:00+00');
     END IF;
     SELECT id INTO ex_id FROM exercises WHERE name = 'Incline Bicep Curl Dumbbell';
     IF ex_id IS NOT NULL THEN
         INSERT INTO session_exercises (session_id, exercise_id, exercise_order, training_method)
             VALUES (session_id, ex_id, 6, 'STRAIGHT_SETS') RETURNING id INTO se_id;
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 1, 14, 12, 7, '2026-03-05 08:66:00+00');
+            VALUES (se_id, 1, 14, 12, 7, '2026-03-05 09:06:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 2, 14, 11, 8, '2026-03-05 08:69:00+00');
+            VALUES (se_id, 2, 14, 11, 8, '2026-03-05 09:09:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 14, 10, 9, '2026-03-05 08:72:00+00');
+            VALUES (se_id, 3, 14, 10, 9, '2026-03-05 09:12:00+00');
     END IF;
     SELECT id INTO ex_id FROM exercises WHERE name = 'Tricep Press Dumbbell Supine';
     IF ex_id IS NOT NULL THEN
         INSERT INTO session_exercises (session_id, exercise_id, exercise_order, training_method)
             VALUES (session_id, ex_id, 7, 'STRAIGHT_SETS') RETURNING id INTO se_id;
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 1, 22, 12, 7, '2026-03-05 08:77:00+00');
+            VALUES (se_id, 1, 22, 12, 7, '2026-03-05 09:17:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 2, 22, 11, 8, '2026-03-05 08:80:00+00');
+            VALUES (se_id, 2, 22, 11, 8, '2026-03-05 09:20:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 22, 10, 9, '2026-03-05 08:83:00+00');
+            VALUES (se_id, 3, 22, 10, 9, '2026-03-05 09:23:00+00');
     END IF;
 
     -- 2026-03-06 Lower B (session 2)
@@ -683,13 +680,13 @@ BEGIN
         INSERT INTO session_exercises (session_id, exercise_id, exercise_order, training_method)
             VALUES (session_id, ex_id, 6, 'STRAIGHT_SETS') RETURNING id INTO se_id;
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 1, 50, 15, 7, '2026-03-06 08:63:00+00');
+            VALUES (se_id, 1, 50, 15, 7, '2026-03-06 09:03:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 2, 50, 14, 8, '2026-03-06 08:66:00+00');
+            VALUES (se_id, 2, 50, 14, 8, '2026-03-06 09:06:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 50, 13, 9, '2026-03-06 08:69:00+00');
+            VALUES (se_id, 3, 50, 13, 9, '2026-03-06 09:09:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 4, 50, 12, 9, '2026-03-06 08:72:00+00');
+            VALUES (se_id, 4, 50, 12, 9, '2026-03-06 09:12:00+00');
     END IF;
 
     -- 2026-03-09 Upper A (session 3)
@@ -757,29 +754,29 @@ BEGIN
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
             VALUES (se_id, 2, 10, 15, 8, '2026-03-09 08:58:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 10, 14, 9, '2026-03-09 08:61:00+00');
+            VALUES (se_id, 3, 10, 14, 9, '2026-03-09 09:01:00+00');
     END IF;
     SELECT id INTO ex_id FROM exercises WHERE name = 'Bicep Curl Barbell';
     IF ex_id IS NOT NULL THEN
         INSERT INTO session_exercises (session_id, exercise_id, exercise_order, training_method)
             VALUES (session_id, ex_id, 6, 'STRAIGHT_SETS') RETURNING id INTO se_id;
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 1, 35.0, 13, 7, '2026-03-09 08:66:00+00');
+            VALUES (se_id, 1, 35.0, 13, 7, '2026-03-09 09:06:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 2, 35.0, 12, 8, '2026-03-09 08:69:00+00');
+            VALUES (se_id, 2, 35.0, 12, 8, '2026-03-09 09:09:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 35.0, 11, 9, '2026-03-09 08:72:00+00');
+            VALUES (se_id, 3, 35.0, 11, 9, '2026-03-09 09:12:00+00');
     END IF;
     SELECT id INTO ex_id FROM exercises WHERE name = 'Tricep Pushdown Cable';
     IF ex_id IS NOT NULL THEN
         INSERT INTO session_exercises (session_id, exercise_id, exercise_order, training_method)
             VALUES (session_id, ex_id, 7, 'STRAIGHT_SETS') RETURNING id INTO se_id;
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 1, 30.0, 13, 7, '2026-03-09 08:77:00+00');
+            VALUES (se_id, 1, 30.0, 13, 7, '2026-03-09 09:17:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 2, 30.0, 12, 8, '2026-03-09 08:80:00+00');
+            VALUES (se_id, 2, 30.0, 12, 8, '2026-03-09 09:20:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 30.0, 11, 9, '2026-03-09 08:83:00+00');
+            VALUES (se_id, 3, 30.0, 11, 9, '2026-03-09 09:23:00+00');
     END IF;
 
     -- 2026-03-10 Lower A (session 3)
@@ -852,13 +849,13 @@ BEGIN
         INSERT INTO session_exercises (session_id, exercise_id, exercise_order, training_method)
             VALUES (session_id, ex_id, 6, 'STRAIGHT_SETS') RETURNING id INTO se_id;
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 1, 90, 16, 7, '2026-03-10 08:63:00+00');
+            VALUES (se_id, 1, 90, 16, 7, '2026-03-10 09:03:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 2, 90, 15, 8, '2026-03-10 08:66:00+00');
+            VALUES (se_id, 2, 90, 15, 8, '2026-03-10 09:06:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 90, 14, 9, '2026-03-10 08:69:00+00');
+            VALUES (se_id, 3, 90, 14, 9, '2026-03-10 09:09:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 4, 90, 13, 9, '2026-03-10 08:72:00+00');
+            VALUES (se_id, 4, 90, 13, 9, '2026-03-10 09:12:00+00');
     END IF;
 
     -- 2026-03-12 Upper B (session 3)
@@ -926,29 +923,29 @@ BEGIN
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
             VALUES (se_id, 2, 8, 15, 8, '2026-03-12 08:58:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 8, 14, 9, '2026-03-12 08:61:00+00');
+            VALUES (se_id, 3, 8, 14, 9, '2026-03-12 09:01:00+00');
     END IF;
     SELECT id INTO ex_id FROM exercises WHERE name = 'Incline Bicep Curl Dumbbell';
     IF ex_id IS NOT NULL THEN
         INSERT INTO session_exercises (session_id, exercise_id, exercise_order, training_method)
             VALUES (session_id, ex_id, 6, 'STRAIGHT_SETS') RETURNING id INTO se_id;
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 1, 14, 13, 7, '2026-03-12 08:66:00+00');
+            VALUES (se_id, 1, 14, 13, 7, '2026-03-12 09:06:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 2, 14, 12, 8, '2026-03-12 08:69:00+00');
+            VALUES (se_id, 2, 14, 12, 8, '2026-03-12 09:09:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 14, 11, 9, '2026-03-12 08:72:00+00');
+            VALUES (se_id, 3, 14, 11, 9, '2026-03-12 09:12:00+00');
     END IF;
     SELECT id INTO ex_id FROM exercises WHERE name = 'Tricep Press Dumbbell Supine';
     IF ex_id IS NOT NULL THEN
         INSERT INTO session_exercises (session_id, exercise_id, exercise_order, training_method)
             VALUES (session_id, ex_id, 7, 'STRAIGHT_SETS') RETURNING id INTO se_id;
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 1, 22, 13, 7, '2026-03-12 08:77:00+00');
+            VALUES (se_id, 1, 22, 13, 7, '2026-03-12 09:17:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 2, 22, 12, 8, '2026-03-12 08:80:00+00');
+            VALUES (se_id, 2, 22, 12, 8, '2026-03-12 09:20:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 22, 11, 9, '2026-03-12 08:83:00+00');
+            VALUES (se_id, 3, 22, 11, 9, '2026-03-12 09:23:00+00');
     END IF;
 
     -- 2026-03-13 Lower B (session 3)
@@ -1021,13 +1018,13 @@ BEGIN
         INSERT INTO session_exercises (session_id, exercise_id, exercise_order, training_method)
             VALUES (session_id, ex_id, 6, 'STRAIGHT_SETS') RETURNING id INTO se_id;
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 1, 55, 16, 7, '2026-03-13 08:63:00+00');
+            VALUES (se_id, 1, 55, 16, 7, '2026-03-13 09:03:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 2, 55, 15, 8, '2026-03-13 08:66:00+00');
+            VALUES (se_id, 2, 55, 15, 8, '2026-03-13 09:06:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 55, 14, 9, '2026-03-13 08:69:00+00');
+            VALUES (se_id, 3, 55, 14, 9, '2026-03-13 09:09:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 4, 55, 13, 9, '2026-03-13 08:72:00+00');
+            VALUES (se_id, 4, 55, 13, 9, '2026-03-13 09:12:00+00');
     END IF;
 
     -- 2026-03-16 Upper A (session 4)
@@ -1095,29 +1092,29 @@ BEGIN
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
             VALUES (se_id, 2, 11, 13, 8, '2026-03-16 08:58:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 11, 12, 9, '2026-03-16 08:61:00+00');
+            VALUES (se_id, 3, 11, 12, 9, '2026-03-16 09:01:00+00');
     END IF;
     SELECT id INTO ex_id FROM exercises WHERE name = 'Bicep Curl Barbell';
     IF ex_id IS NOT NULL THEN
         INSERT INTO session_exercises (session_id, exercise_id, exercise_order, training_method)
             VALUES (session_id, ex_id, 6, 'STRAIGHT_SETS') RETURNING id INTO se_id;
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 1, 37.5, 11, 7, '2026-03-16 08:66:00+00');
+            VALUES (se_id, 1, 37.5, 11, 7, '2026-03-16 09:06:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 2, 37.5, 10, 8, '2026-03-16 08:69:00+00');
+            VALUES (se_id, 2, 37.5, 10, 8, '2026-03-16 09:09:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 37.5, 9, 9, '2026-03-16 08:72:00+00');
+            VALUES (se_id, 3, 37.5, 9, 9, '2026-03-16 09:12:00+00');
     END IF;
     SELECT id INTO ex_id FROM exercises WHERE name = 'Tricep Pushdown Cable';
     IF ex_id IS NOT NULL THEN
         INSERT INTO session_exercises (session_id, exercise_id, exercise_order, training_method)
             VALUES (session_id, ex_id, 7, 'STRAIGHT_SETS') RETURNING id INTO se_id;
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 1, 32.5, 11, 7, '2026-03-16 08:77:00+00');
+            VALUES (se_id, 1, 32.5, 11, 7, '2026-03-16 09:17:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 2, 32.5, 10, 8, '2026-03-16 08:80:00+00');
+            VALUES (se_id, 2, 32.5, 10, 8, '2026-03-16 09:20:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 32.5, 9, 9, '2026-03-16 08:83:00+00');
+            VALUES (se_id, 3, 32.5, 9, 9, '2026-03-16 09:23:00+00');
     END IF;
 
     -- 2026-03-17 Lower A (session 4)
@@ -1190,13 +1187,13 @@ BEGIN
         INSERT INTO session_exercises (session_id, exercise_id, exercise_order, training_method)
             VALUES (session_id, ex_id, 6, 'STRAIGHT_SETS') RETURNING id INTO se_id;
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 1, 90, 14, 7, '2026-03-17 08:63:00+00');
+            VALUES (se_id, 1, 90, 14, 7, '2026-03-17 09:03:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 2, 90, 13, 8, '2026-03-17 08:66:00+00');
+            VALUES (se_id, 2, 90, 13, 8, '2026-03-17 09:06:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 90, 12, 9, '2026-03-17 08:69:00+00');
+            VALUES (se_id, 3, 90, 12, 9, '2026-03-17 09:09:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 4, 90, 11, 9, '2026-03-17 08:72:00+00');
+            VALUES (se_id, 4, 90, 11, 9, '2026-03-17 09:12:00+00');
     END IF;
 
     -- 2026-03-19 Upper B (session 4)
@@ -1264,29 +1261,29 @@ BEGIN
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
             VALUES (se_id, 2, 9, 13, 8, '2026-03-19 08:58:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 9, 12, 9, '2026-03-19 08:61:00+00');
+            VALUES (se_id, 3, 9, 12, 9, '2026-03-19 09:01:00+00');
     END IF;
     SELECT id INTO ex_id FROM exercises WHERE name = 'Incline Bicep Curl Dumbbell';
     IF ex_id IS NOT NULL THEN
         INSERT INTO session_exercises (session_id, exercise_id, exercise_order, training_method)
             VALUES (session_id, ex_id, 6, 'STRAIGHT_SETS') RETURNING id INTO se_id;
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 1, 16, 11, 7, '2026-03-19 08:66:00+00');
+            VALUES (se_id, 1, 16, 11, 7, '2026-03-19 09:06:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 2, 16, 10, 8, '2026-03-19 08:69:00+00');
+            VALUES (se_id, 2, 16, 10, 8, '2026-03-19 09:09:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 16, 9, 9, '2026-03-19 08:72:00+00');
+            VALUES (se_id, 3, 16, 9, 9, '2026-03-19 09:12:00+00');
     END IF;
     SELECT id INTO ex_id FROM exercises WHERE name = 'Tricep Press Dumbbell Supine';
     IF ex_id IS NOT NULL THEN
         INSERT INTO session_exercises (session_id, exercise_id, exercise_order, training_method)
             VALUES (session_id, ex_id, 7, 'STRAIGHT_SETS') RETURNING id INTO se_id;
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 1, 24, 11, 7, '2026-03-19 08:77:00+00');
+            VALUES (se_id, 1, 24, 11, 7, '2026-03-19 09:17:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 2, 24, 10, 8, '2026-03-19 08:80:00+00');
+            VALUES (se_id, 2, 24, 10, 8, '2026-03-19 09:20:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 24, 9, 9, '2026-03-19 08:83:00+00');
+            VALUES (se_id, 3, 24, 9, 9, '2026-03-19 09:23:00+00');
     END IF;
 
     -- 2026-03-20 Lower B (session 4)
@@ -1359,13 +1356,13 @@ BEGIN
         INSERT INTO session_exercises (session_id, exercise_id, exercise_order, training_method)
             VALUES (session_id, ex_id, 6, 'STRAIGHT_SETS') RETURNING id INTO se_id;
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 1, 55, 14, 7, '2026-03-20 08:63:00+00');
+            VALUES (se_id, 1, 55, 14, 7, '2026-03-20 09:03:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 2, 55, 13, 8, '2026-03-20 08:66:00+00');
+            VALUES (se_id, 2, 55, 13, 8, '2026-03-20 09:06:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 55, 12, 9, '2026-03-20 08:69:00+00');
+            VALUES (se_id, 3, 55, 12, 9, '2026-03-20 09:09:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 4, 55, 11, 9, '2026-03-20 08:72:00+00');
+            VALUES (se_id, 4, 55, 11, 9, '2026-03-20 09:12:00+00');
     END IF;
 
     -- 2026-03-23 Upper A (session 5)
@@ -1433,29 +1430,29 @@ BEGIN
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
             VALUES (se_id, 2, 11, 14, 8, '2026-03-23 08:58:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 11, 13, 9, '2026-03-23 08:61:00+00');
+            VALUES (se_id, 3, 11, 13, 9, '2026-03-23 09:01:00+00');
     END IF;
     SELECT id INTO ex_id FROM exercises WHERE name = 'Bicep Curl Barbell';
     IF ex_id IS NOT NULL THEN
         INSERT INTO session_exercises (session_id, exercise_id, exercise_order, training_method)
             VALUES (session_id, ex_id, 6, 'STRAIGHT_SETS') RETURNING id INTO se_id;
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 1, 37.5, 12, 7, '2026-03-23 08:66:00+00');
+            VALUES (se_id, 1, 37.5, 12, 7, '2026-03-23 09:06:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 2, 37.5, 11, 8, '2026-03-23 08:69:00+00');
+            VALUES (se_id, 2, 37.5, 11, 8, '2026-03-23 09:09:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 37.5, 10, 9, '2026-03-23 08:72:00+00');
+            VALUES (se_id, 3, 37.5, 10, 9, '2026-03-23 09:12:00+00');
     END IF;
     SELECT id INTO ex_id FROM exercises WHERE name = 'Tricep Pushdown Cable';
     IF ex_id IS NOT NULL THEN
         INSERT INTO session_exercises (session_id, exercise_id, exercise_order, training_method)
             VALUES (session_id, ex_id, 7, 'STRAIGHT_SETS') RETURNING id INTO se_id;
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 1, 32.5, 12, 7, '2026-03-23 08:77:00+00');
+            VALUES (se_id, 1, 32.5, 12, 7, '2026-03-23 09:17:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 2, 32.5, 11, 8, '2026-03-23 08:80:00+00');
+            VALUES (se_id, 2, 32.5, 11, 8, '2026-03-23 09:20:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 32.5, 10, 9, '2026-03-23 08:83:00+00');
+            VALUES (se_id, 3, 32.5, 10, 9, '2026-03-23 09:23:00+00');
     END IF;
 
     -- 2026-03-24 Lower A (session 5)
@@ -1528,13 +1525,13 @@ BEGIN
         INSERT INTO session_exercises (session_id, exercise_id, exercise_order, training_method)
             VALUES (session_id, ex_id, 6, 'STRAIGHT_SETS') RETURNING id INTO se_id;
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 1, 100, 15, 7, '2026-03-24 08:63:00+00');
+            VALUES (se_id, 1, 100, 15, 7, '2026-03-24 09:03:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 2, 100, 14, 8, '2026-03-24 08:66:00+00');
+            VALUES (se_id, 2, 100, 14, 8, '2026-03-24 09:06:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 100, 13, 9, '2026-03-24 08:69:00+00');
+            VALUES (se_id, 3, 100, 13, 9, '2026-03-24 09:09:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 4, 100, 12, 9, '2026-03-24 08:72:00+00');
+            VALUES (se_id, 4, 100, 12, 9, '2026-03-24 09:12:00+00');
     END IF;
 
     -- 2026-03-26 Upper B (session 5)
@@ -1602,29 +1599,29 @@ BEGIN
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
             VALUES (se_id, 2, 9, 14, 8, '2026-03-26 08:58:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 9, 13, 9, '2026-03-26 08:61:00+00');
+            VALUES (se_id, 3, 9, 13, 9, '2026-03-26 09:01:00+00');
     END IF;
     SELECT id INTO ex_id FROM exercises WHERE name = 'Incline Bicep Curl Dumbbell';
     IF ex_id IS NOT NULL THEN
         INSERT INTO session_exercises (session_id, exercise_id, exercise_order, training_method)
             VALUES (session_id, ex_id, 6, 'STRAIGHT_SETS') RETURNING id INTO se_id;
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 1, 16, 12, 7, '2026-03-26 08:66:00+00');
+            VALUES (se_id, 1, 16, 12, 7, '2026-03-26 09:06:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 2, 16, 11, 8, '2026-03-26 08:69:00+00');
+            VALUES (se_id, 2, 16, 11, 8, '2026-03-26 09:09:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 16, 10, 9, '2026-03-26 08:72:00+00');
+            VALUES (se_id, 3, 16, 10, 9, '2026-03-26 09:12:00+00');
     END IF;
     SELECT id INTO ex_id FROM exercises WHERE name = 'Tricep Press Dumbbell Supine';
     IF ex_id IS NOT NULL THEN
         INSERT INTO session_exercises (session_id, exercise_id, exercise_order, training_method)
             VALUES (session_id, ex_id, 7, 'STRAIGHT_SETS') RETURNING id INTO se_id;
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 1, 24, 12, 7, '2026-03-26 08:77:00+00');
+            VALUES (se_id, 1, 24, 12, 7, '2026-03-26 09:17:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 2, 24, 11, 8, '2026-03-26 08:80:00+00');
+            VALUES (se_id, 2, 24, 11, 8, '2026-03-26 09:20:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 24, 10, 9, '2026-03-26 08:83:00+00');
+            VALUES (se_id, 3, 24, 10, 9, '2026-03-26 09:23:00+00');
     END IF;
 
     -- 2026-03-27 Lower B (session 5)
@@ -1697,13 +1694,13 @@ BEGIN
         INSERT INTO session_exercises (session_id, exercise_id, exercise_order, training_method)
             VALUES (session_id, ex_id, 6, 'STRAIGHT_SETS') RETURNING id INTO se_id;
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 1, 60, 15, 7, '2026-03-27 08:63:00+00');
+            VALUES (se_id, 1, 60, 15, 7, '2026-03-27 09:03:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 2, 60, 14, 8, '2026-03-27 08:66:00+00');
+            VALUES (se_id, 2, 60, 14, 8, '2026-03-27 09:06:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 60, 13, 9, '2026-03-27 08:69:00+00');
+            VALUES (se_id, 3, 60, 13, 9, '2026-03-27 09:09:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 4, 60, 12, 9, '2026-03-27 08:72:00+00');
+            VALUES (se_id, 4, 60, 12, 9, '2026-03-27 09:12:00+00');
     END IF;
 
     -- 2026-03-30 Upper A (session 6)
@@ -1771,29 +1768,29 @@ BEGIN
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
             VALUES (se_id, 2, 11, 15, 8, '2026-03-30 08:58:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 11, 14, 9, '2026-03-30 08:61:00+00');
+            VALUES (se_id, 3, 11, 14, 9, '2026-03-30 09:01:00+00');
     END IF;
     SELECT id INTO ex_id FROM exercises WHERE name = 'Bicep Curl Barbell';
     IF ex_id IS NOT NULL THEN
         INSERT INTO session_exercises (session_id, exercise_id, exercise_order, training_method)
             VALUES (session_id, ex_id, 6, 'STRAIGHT_SETS') RETURNING id INTO se_id;
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 1, 37.5, 13, 7, '2026-03-30 08:66:00+00');
+            VALUES (se_id, 1, 37.5, 13, 7, '2026-03-30 09:06:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 2, 37.5, 12, 8, '2026-03-30 08:69:00+00');
+            VALUES (se_id, 2, 37.5, 12, 8, '2026-03-30 09:09:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 37.5, 11, 9, '2026-03-30 08:72:00+00');
+            VALUES (se_id, 3, 37.5, 11, 9, '2026-03-30 09:12:00+00');
     END IF;
     SELECT id INTO ex_id FROM exercises WHERE name = 'Tricep Pushdown Cable';
     IF ex_id IS NOT NULL THEN
         INSERT INTO session_exercises (session_id, exercise_id, exercise_order, training_method)
             VALUES (session_id, ex_id, 7, 'STRAIGHT_SETS') RETURNING id INTO se_id;
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 1, 32.5, 13, 7, '2026-03-30 08:77:00+00');
+            VALUES (se_id, 1, 32.5, 13, 7, '2026-03-30 09:17:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 2, 32.5, 12, 8, '2026-03-30 08:80:00+00');
+            VALUES (se_id, 2, 32.5, 12, 8, '2026-03-30 09:20:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 32.5, 11, 9, '2026-03-30 08:83:00+00');
+            VALUES (se_id, 3, 32.5, 11, 9, '2026-03-30 09:23:00+00');
     END IF;
 
     -- 2026-03-31 Lower A (session 6)
@@ -1866,13 +1863,13 @@ BEGIN
         INSERT INTO session_exercises (session_id, exercise_id, exercise_order, training_method)
             VALUES (session_id, ex_id, 6, 'STRAIGHT_SETS') RETURNING id INTO se_id;
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 1, 100, 16, 7, '2026-03-31 08:63:00+00');
+            VALUES (se_id, 1, 100, 16, 7, '2026-03-31 09:03:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 2, 100, 15, 8, '2026-03-31 08:66:00+00');
+            VALUES (se_id, 2, 100, 15, 8, '2026-03-31 09:06:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 100, 14, 9, '2026-03-31 08:69:00+00');
+            VALUES (se_id, 3, 100, 14, 9, '2026-03-31 09:09:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 4, 100, 13, 9, '2026-03-31 08:72:00+00');
+            VALUES (se_id, 4, 100, 13, 9, '2026-03-31 09:12:00+00');
     END IF;
 
     -- 2026-04-02 Upper B (session 6)
@@ -1940,29 +1937,29 @@ BEGIN
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
             VALUES (se_id, 2, 9, 15, 8, '2026-04-02 08:58:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 9, 14, 9, '2026-04-02 08:61:00+00');
+            VALUES (se_id, 3, 9, 14, 9, '2026-04-02 09:01:00+00');
     END IF;
     SELECT id INTO ex_id FROM exercises WHERE name = 'Incline Bicep Curl Dumbbell';
     IF ex_id IS NOT NULL THEN
         INSERT INTO session_exercises (session_id, exercise_id, exercise_order, training_method)
             VALUES (session_id, ex_id, 6, 'STRAIGHT_SETS') RETURNING id INTO se_id;
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 1, 16, 13, 7, '2026-04-02 08:66:00+00');
+            VALUES (se_id, 1, 16, 13, 7, '2026-04-02 09:06:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 2, 16, 12, 8, '2026-04-02 08:69:00+00');
+            VALUES (se_id, 2, 16, 12, 8, '2026-04-02 09:09:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 16, 11, 9, '2026-04-02 08:72:00+00');
+            VALUES (se_id, 3, 16, 11, 9, '2026-04-02 09:12:00+00');
     END IF;
     SELECT id INTO ex_id FROM exercises WHERE name = 'Tricep Press Dumbbell Supine';
     IF ex_id IS NOT NULL THEN
         INSERT INTO session_exercises (session_id, exercise_id, exercise_order, training_method)
             VALUES (session_id, ex_id, 7, 'STRAIGHT_SETS') RETURNING id INTO se_id;
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 1, 24, 13, 7, '2026-04-02 08:77:00+00');
+            VALUES (se_id, 1, 24, 13, 7, '2026-04-02 09:17:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 2, 24, 12, 8, '2026-04-02 08:80:00+00');
+            VALUES (se_id, 2, 24, 12, 8, '2026-04-02 09:20:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 24, 11, 9, '2026-04-02 08:83:00+00');
+            VALUES (se_id, 3, 24, 11, 9, '2026-04-02 09:23:00+00');
     END IF;
 
     -- 2026-04-03 Lower B (session 6)
@@ -2035,13 +2032,13 @@ BEGIN
         INSERT INTO session_exercises (session_id, exercise_id, exercise_order, training_method)
             VALUES (session_id, ex_id, 6, 'STRAIGHT_SETS') RETURNING id INTO se_id;
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 1, 60, 16, 7, '2026-04-03 08:63:00+00');
+            VALUES (se_id, 1, 60, 16, 7, '2026-04-03 09:03:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 2, 60, 15, 8, '2026-04-03 08:66:00+00');
+            VALUES (se_id, 2, 60, 15, 8, '2026-04-03 09:06:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 60, 14, 9, '2026-04-03 08:69:00+00');
+            VALUES (se_id, 3, 60, 14, 9, '2026-04-03 09:09:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 4, 60, 13, 9, '2026-04-03 08:72:00+00');
+            VALUES (se_id, 4, 60, 13, 9, '2026-04-03 09:12:00+00');
     END IF;
 
     -- 2026-04-06 Upper A (session 7)
@@ -2109,29 +2106,29 @@ BEGIN
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
             VALUES (se_id, 2, 12, 13, 8, '2026-04-06 08:58:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 12, 12, 9, '2026-04-06 08:61:00+00');
+            VALUES (se_id, 3, 12, 12, 9, '2026-04-06 09:01:00+00');
     END IF;
     SELECT id INTO ex_id FROM exercises WHERE name = 'Bicep Curl Barbell';
     IF ex_id IS NOT NULL THEN
         INSERT INTO session_exercises (session_id, exercise_id, exercise_order, training_method)
             VALUES (session_id, ex_id, 6, 'STRAIGHT_SETS') RETURNING id INTO se_id;
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 1, 40.0, 11, 7, '2026-04-06 08:66:00+00');
+            VALUES (se_id, 1, 40.0, 11, 7, '2026-04-06 09:06:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 2, 40.0, 10, 8, '2026-04-06 08:69:00+00');
+            VALUES (se_id, 2, 40.0, 10, 8, '2026-04-06 09:09:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 40.0, 9, 9, '2026-04-06 08:72:00+00');
+            VALUES (se_id, 3, 40.0, 9, 9, '2026-04-06 09:12:00+00');
     END IF;
     SELECT id INTO ex_id FROM exercises WHERE name = 'Tricep Pushdown Cable';
     IF ex_id IS NOT NULL THEN
         INSERT INTO session_exercises (session_id, exercise_id, exercise_order, training_method)
             VALUES (session_id, ex_id, 7, 'STRAIGHT_SETS') RETURNING id INTO se_id;
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 1, 35.0, 11, 7, '2026-04-06 08:77:00+00');
+            VALUES (se_id, 1, 35.0, 11, 7, '2026-04-06 09:17:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 2, 35.0, 10, 8, '2026-04-06 08:80:00+00');
+            VALUES (se_id, 2, 35.0, 10, 8, '2026-04-06 09:20:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 35.0, 9, 9, '2026-04-06 08:83:00+00');
+            VALUES (se_id, 3, 35.0, 9, 9, '2026-04-06 09:23:00+00');
     END IF;
 
     -- 2026-04-07 Lower A (session 7)
@@ -2204,13 +2201,13 @@ BEGIN
         INSERT INTO session_exercises (session_id, exercise_id, exercise_order, training_method)
             VALUES (session_id, ex_id, 6, 'STRAIGHT_SETS') RETURNING id INTO se_id;
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 1, 110, 14, 7, '2026-04-07 08:63:00+00');
+            VALUES (se_id, 1, 110, 14, 7, '2026-04-07 09:03:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 2, 110, 13, 8, '2026-04-07 08:66:00+00');
+            VALUES (se_id, 2, 110, 13, 8, '2026-04-07 09:06:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 110, 12, 9, '2026-04-07 08:69:00+00');
+            VALUES (se_id, 3, 110, 12, 9, '2026-04-07 09:09:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 4, 110, 11, 9, '2026-04-07 08:72:00+00');
+            VALUES (se_id, 4, 110, 11, 9, '2026-04-07 09:12:00+00');
     END IF;
 
     -- 2026-04-09 Upper B (session 7)
@@ -2278,29 +2275,29 @@ BEGIN
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
             VALUES (se_id, 2, 10, 13, 8, '2026-04-09 08:58:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 10, 12, 9, '2026-04-09 08:61:00+00');
+            VALUES (se_id, 3, 10, 12, 9, '2026-04-09 09:01:00+00');
     END IF;
     SELECT id INTO ex_id FROM exercises WHERE name = 'Incline Bicep Curl Dumbbell';
     IF ex_id IS NOT NULL THEN
         INSERT INTO session_exercises (session_id, exercise_id, exercise_order, training_method)
             VALUES (session_id, ex_id, 6, 'STRAIGHT_SETS') RETURNING id INTO se_id;
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 1, 18, 11, 7, '2026-04-09 08:66:00+00');
+            VALUES (se_id, 1, 18, 11, 7, '2026-04-09 09:06:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 2, 18, 10, 8, '2026-04-09 08:69:00+00');
+            VALUES (se_id, 2, 18, 10, 8, '2026-04-09 09:09:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 18, 9, 9, '2026-04-09 08:72:00+00');
+            VALUES (se_id, 3, 18, 9, 9, '2026-04-09 09:12:00+00');
     END IF;
     SELECT id INTO ex_id FROM exercises WHERE name = 'Tricep Press Dumbbell Supine';
     IF ex_id IS NOT NULL THEN
         INSERT INTO session_exercises (session_id, exercise_id, exercise_order, training_method)
             VALUES (session_id, ex_id, 7, 'STRAIGHT_SETS') RETURNING id INTO se_id;
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 1, 26, 11, 7, '2026-04-09 08:77:00+00');
+            VALUES (se_id, 1, 26, 11, 7, '2026-04-09 09:17:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 2, 26, 10, 8, '2026-04-09 08:80:00+00');
+            VALUES (se_id, 2, 26, 10, 8, '2026-04-09 09:20:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 26, 9, 9, '2026-04-09 08:83:00+00');
+            VALUES (se_id, 3, 26, 9, 9, '2026-04-09 09:23:00+00');
     END IF;
 
     -- 2026-04-10 Lower B (session 7)
@@ -2373,13 +2370,13 @@ BEGIN
         INSERT INTO session_exercises (session_id, exercise_id, exercise_order, training_method)
             VALUES (session_id, ex_id, 6, 'STRAIGHT_SETS') RETURNING id INTO se_id;
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 1, 65, 14, 7, '2026-04-10 08:63:00+00');
+            VALUES (se_id, 1, 65, 14, 7, '2026-04-10 09:03:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 2, 65, 13, 8, '2026-04-10 08:66:00+00');
+            VALUES (se_id, 2, 65, 13, 8, '2026-04-10 09:06:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 65, 12, 9, '2026-04-10 08:69:00+00');
+            VALUES (se_id, 3, 65, 12, 9, '2026-04-10 09:09:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 4, 65, 11, 9, '2026-04-10 08:72:00+00');
+            VALUES (se_id, 4, 65, 11, 9, '2026-04-10 09:12:00+00');
     END IF;
 
     -- 2026-04-13 Upper A (session 8)
@@ -2447,29 +2444,29 @@ BEGIN
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
             VALUES (se_id, 2, 12, 14, 8, '2026-04-13 08:58:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 12, 13, 9, '2026-04-13 08:61:00+00');
+            VALUES (se_id, 3, 12, 13, 9, '2026-04-13 09:01:00+00');
     END IF;
     SELECT id INTO ex_id FROM exercises WHERE name = 'Bicep Curl Barbell';
     IF ex_id IS NOT NULL THEN
         INSERT INTO session_exercises (session_id, exercise_id, exercise_order, training_method)
             VALUES (session_id, ex_id, 6, 'STRAIGHT_SETS') RETURNING id INTO se_id;
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 1, 40.0, 12, 7, '2026-04-13 08:66:00+00');
+            VALUES (se_id, 1, 40.0, 12, 7, '2026-04-13 09:06:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 2, 40.0, 11, 8, '2026-04-13 08:69:00+00');
+            VALUES (se_id, 2, 40.0, 11, 8, '2026-04-13 09:09:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 40.0, 10, 9, '2026-04-13 08:72:00+00');
+            VALUES (se_id, 3, 40.0, 10, 9, '2026-04-13 09:12:00+00');
     END IF;
     SELECT id INTO ex_id FROM exercises WHERE name = 'Tricep Pushdown Cable';
     IF ex_id IS NOT NULL THEN
         INSERT INTO session_exercises (session_id, exercise_id, exercise_order, training_method)
             VALUES (session_id, ex_id, 7, 'STRAIGHT_SETS') RETURNING id INTO se_id;
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 1, 35.0, 12, 7, '2026-04-13 08:77:00+00');
+            VALUES (se_id, 1, 35.0, 12, 7, '2026-04-13 09:17:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 2, 35.0, 11, 8, '2026-04-13 08:80:00+00');
+            VALUES (se_id, 2, 35.0, 11, 8, '2026-04-13 09:20:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 35.0, 10, 9, '2026-04-13 08:83:00+00');
+            VALUES (se_id, 3, 35.0, 10, 9, '2026-04-13 09:23:00+00');
     END IF;
 
     -- 2026-04-14 Lower A (session 8)
@@ -2542,13 +2539,13 @@ BEGIN
         INSERT INTO session_exercises (session_id, exercise_id, exercise_order, training_method)
             VALUES (session_id, ex_id, 6, 'STRAIGHT_SETS') RETURNING id INTO se_id;
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 1, 110, 15, 7, '2026-04-14 08:63:00+00');
+            VALUES (se_id, 1, 110, 15, 7, '2026-04-14 09:03:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 2, 110, 14, 8, '2026-04-14 08:66:00+00');
+            VALUES (se_id, 2, 110, 14, 8, '2026-04-14 09:06:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 110, 13, 9, '2026-04-14 08:69:00+00');
+            VALUES (se_id, 3, 110, 13, 9, '2026-04-14 09:09:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 4, 110, 12, 9, '2026-04-14 08:72:00+00');
+            VALUES (se_id, 4, 110, 12, 9, '2026-04-14 09:12:00+00');
     END IF;
 
     -- 2026-04-16 Upper B (session 8)
@@ -2616,29 +2613,29 @@ BEGIN
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
             VALUES (se_id, 2, 10, 14, 8, '2026-04-16 08:58:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 10, 13, 9, '2026-04-16 08:61:00+00');
+            VALUES (se_id, 3, 10, 13, 9, '2026-04-16 09:01:00+00');
     END IF;
     SELECT id INTO ex_id FROM exercises WHERE name = 'Incline Bicep Curl Dumbbell';
     IF ex_id IS NOT NULL THEN
         INSERT INTO session_exercises (session_id, exercise_id, exercise_order, training_method)
             VALUES (session_id, ex_id, 6, 'STRAIGHT_SETS') RETURNING id INTO se_id;
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 1, 18, 12, 7, '2026-04-16 08:66:00+00');
+            VALUES (se_id, 1, 18, 12, 7, '2026-04-16 09:06:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 2, 18, 11, 8, '2026-04-16 08:69:00+00');
+            VALUES (se_id, 2, 18, 11, 8, '2026-04-16 09:09:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 18, 10, 9, '2026-04-16 08:72:00+00');
+            VALUES (se_id, 3, 18, 10, 9, '2026-04-16 09:12:00+00');
     END IF;
     SELECT id INTO ex_id FROM exercises WHERE name = 'Tricep Press Dumbbell Supine';
     IF ex_id IS NOT NULL THEN
         INSERT INTO session_exercises (session_id, exercise_id, exercise_order, training_method)
             VALUES (session_id, ex_id, 7, 'STRAIGHT_SETS') RETURNING id INTO se_id;
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 1, 26, 12, 7, '2026-04-16 08:77:00+00');
+            VALUES (se_id, 1, 26, 12, 7, '2026-04-16 09:17:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 2, 26, 11, 8, '2026-04-16 08:80:00+00');
+            VALUES (se_id, 2, 26, 11, 8, '2026-04-16 09:20:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 26, 10, 9, '2026-04-16 08:83:00+00');
+            VALUES (se_id, 3, 26, 10, 9, '2026-04-16 09:23:00+00');
     END IF;
 
     -- 2026-04-17 Lower B (session 8)
@@ -2711,13 +2708,13 @@ BEGIN
         INSERT INTO session_exercises (session_id, exercise_id, exercise_order, training_method)
             VALUES (session_id, ex_id, 6, 'STRAIGHT_SETS') RETURNING id INTO se_id;
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 1, 65, 15, 7, '2026-04-17 08:63:00+00');
+            VALUES (se_id, 1, 65, 15, 7, '2026-04-17 09:03:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 2, 65, 14, 8, '2026-04-17 08:66:00+00');
+            VALUES (se_id, 2, 65, 14, 8, '2026-04-17 09:06:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 65, 13, 9, '2026-04-17 08:69:00+00');
+            VALUES (se_id, 3, 65, 13, 9, '2026-04-17 09:09:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 4, 65, 12, 9, '2026-04-17 08:72:00+00');
+            VALUES (se_id, 4, 65, 12, 9, '2026-04-17 09:12:00+00');
     END IF;
 
     -- 2026-04-20 Upper A (session 9)
@@ -2785,29 +2782,29 @@ BEGIN
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
             VALUES (se_id, 2, 12, 15, 8, '2026-04-20 08:58:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 12, 14, 9, '2026-04-20 08:61:00+00');
+            VALUES (se_id, 3, 12, 14, 9, '2026-04-20 09:01:00+00');
     END IF;
     SELECT id INTO ex_id FROM exercises WHERE name = 'Bicep Curl Barbell';
     IF ex_id IS NOT NULL THEN
         INSERT INTO session_exercises (session_id, exercise_id, exercise_order, training_method)
             VALUES (session_id, ex_id, 6, 'STRAIGHT_SETS') RETURNING id INTO se_id;
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 1, 40.0, 13, 7, '2026-04-20 08:66:00+00');
+            VALUES (se_id, 1, 40.0, 13, 7, '2026-04-20 09:06:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 2, 40.0, 12, 8, '2026-04-20 08:69:00+00');
+            VALUES (se_id, 2, 40.0, 12, 8, '2026-04-20 09:09:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 40.0, 11, 9, '2026-04-20 08:72:00+00');
+            VALUES (se_id, 3, 40.0, 11, 9, '2026-04-20 09:12:00+00');
     END IF;
     SELECT id INTO ex_id FROM exercises WHERE name = 'Tricep Pushdown Cable';
     IF ex_id IS NOT NULL THEN
         INSERT INTO session_exercises (session_id, exercise_id, exercise_order, training_method)
             VALUES (session_id, ex_id, 7, 'STRAIGHT_SETS') RETURNING id INTO se_id;
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 1, 35.0, 13, 7, '2026-04-20 08:77:00+00');
+            VALUES (se_id, 1, 35.0, 13, 7, '2026-04-20 09:17:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 2, 35.0, 12, 8, '2026-04-20 08:80:00+00');
+            VALUES (se_id, 2, 35.0, 12, 8, '2026-04-20 09:20:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 35.0, 11, 9, '2026-04-20 08:83:00+00');
+            VALUES (se_id, 3, 35.0, 11, 9, '2026-04-20 09:23:00+00');
     END IF;
 
     -- 2026-04-21 Lower A (session 9)
@@ -2880,13 +2877,13 @@ BEGIN
         INSERT INTO session_exercises (session_id, exercise_id, exercise_order, training_method)
             VALUES (session_id, ex_id, 6, 'STRAIGHT_SETS') RETURNING id INTO se_id;
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 1, 120, 16, 7, '2026-04-21 08:63:00+00');
+            VALUES (se_id, 1, 120, 16, 7, '2026-04-21 09:03:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 2, 120, 15, 8, '2026-04-21 08:66:00+00');
+            VALUES (se_id, 2, 120, 15, 8, '2026-04-21 09:06:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 120, 14, 9, '2026-04-21 08:69:00+00');
+            VALUES (se_id, 3, 120, 14, 9, '2026-04-21 09:09:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 4, 120, 13, 9, '2026-04-21 08:72:00+00');
+            VALUES (se_id, 4, 120, 13, 9, '2026-04-21 09:12:00+00');
     END IF;
 
     -- 2026-04-23 Upper B (session 9)
@@ -2954,29 +2951,29 @@ BEGIN
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
             VALUES (se_id, 2, 10, 15, 8, '2026-04-23 08:58:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 10, 14, 9, '2026-04-23 08:61:00+00');
+            VALUES (se_id, 3, 10, 14, 9, '2026-04-23 09:01:00+00');
     END IF;
     SELECT id INTO ex_id FROM exercises WHERE name = 'Incline Bicep Curl Dumbbell';
     IF ex_id IS NOT NULL THEN
         INSERT INTO session_exercises (session_id, exercise_id, exercise_order, training_method)
             VALUES (session_id, ex_id, 6, 'STRAIGHT_SETS') RETURNING id INTO se_id;
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 1, 18, 13, 7, '2026-04-23 08:66:00+00');
+            VALUES (se_id, 1, 18, 13, 7, '2026-04-23 09:06:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 2, 18, 12, 8, '2026-04-23 08:69:00+00');
+            VALUES (se_id, 2, 18, 12, 8, '2026-04-23 09:09:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 18, 11, 9, '2026-04-23 08:72:00+00');
+            VALUES (se_id, 3, 18, 11, 9, '2026-04-23 09:12:00+00');
     END IF;
     SELECT id INTO ex_id FROM exercises WHERE name = 'Tricep Press Dumbbell Supine';
     IF ex_id IS NOT NULL THEN
         INSERT INTO session_exercises (session_id, exercise_id, exercise_order, training_method)
             VALUES (session_id, ex_id, 7, 'STRAIGHT_SETS') RETURNING id INTO se_id;
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 1, 26, 13, 7, '2026-04-23 08:77:00+00');
+            VALUES (se_id, 1, 26, 13, 7, '2026-04-23 09:17:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 2, 26, 12, 8, '2026-04-23 08:80:00+00');
+            VALUES (se_id, 2, 26, 12, 8, '2026-04-23 09:20:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 26, 11, 9, '2026-04-23 08:83:00+00');
+            VALUES (se_id, 3, 26, 11, 9, '2026-04-23 09:23:00+00');
     END IF;
 
     -- 2026-04-24 Lower B (session 9)
@@ -3049,13 +3046,13 @@ BEGIN
         INSERT INTO session_exercises (session_id, exercise_id, exercise_order, training_method)
             VALUES (session_id, ex_id, 6, 'STRAIGHT_SETS') RETURNING id INTO se_id;
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 1, 70, 16, 7, '2026-04-24 08:63:00+00');
+            VALUES (se_id, 1, 70, 16, 7, '2026-04-24 09:03:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 2, 70, 15, 8, '2026-04-24 08:66:00+00');
+            VALUES (se_id, 2, 70, 15, 8, '2026-04-24 09:06:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 70, 14, 9, '2026-04-24 08:69:00+00');
+            VALUES (se_id, 3, 70, 14, 9, '2026-04-24 09:09:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 4, 70, 13, 9, '2026-04-24 08:72:00+00');
+            VALUES (se_id, 4, 70, 13, 9, '2026-04-24 09:12:00+00');
     END IF;
 
     -- 2026-04-27 Upper A (session 10)
@@ -3123,29 +3120,29 @@ BEGIN
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
             VALUES (se_id, 2, 13, 13, 8, '2026-04-27 08:58:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 13, 12, 9, '2026-04-27 08:61:00+00');
+            VALUES (se_id, 3, 13, 12, 9, '2026-04-27 09:01:00+00');
     END IF;
     SELECT id INTO ex_id FROM exercises WHERE name = 'Bicep Curl Barbell';
     IF ex_id IS NOT NULL THEN
         INSERT INTO session_exercises (session_id, exercise_id, exercise_order, training_method)
             VALUES (session_id, ex_id, 6, 'STRAIGHT_SETS') RETURNING id INTO se_id;
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 1, 42.5, 11, 7, '2026-04-27 08:66:00+00');
+            VALUES (se_id, 1, 42.5, 11, 7, '2026-04-27 09:06:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 2, 42.5, 10, 8, '2026-04-27 08:69:00+00');
+            VALUES (se_id, 2, 42.5, 10, 8, '2026-04-27 09:09:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 42.5, 9, 9, '2026-04-27 08:72:00+00');
+            VALUES (se_id, 3, 42.5, 9, 9, '2026-04-27 09:12:00+00');
     END IF;
     SELECT id INTO ex_id FROM exercises WHERE name = 'Tricep Pushdown Cable';
     IF ex_id IS NOT NULL THEN
         INSERT INTO session_exercises (session_id, exercise_id, exercise_order, training_method)
             VALUES (session_id, ex_id, 7, 'STRAIGHT_SETS') RETURNING id INTO se_id;
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 1, 37.5, 11, 7, '2026-04-27 08:77:00+00');
+            VALUES (se_id, 1, 37.5, 11, 7, '2026-04-27 09:17:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 2, 37.5, 10, 8, '2026-04-27 08:80:00+00');
+            VALUES (se_id, 2, 37.5, 10, 8, '2026-04-27 09:20:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 37.5, 9, 9, '2026-04-27 08:83:00+00');
+            VALUES (se_id, 3, 37.5, 9, 9, '2026-04-27 09:23:00+00');
     END IF;
 
     -- 2026-04-28 Lower A (session 10)
@@ -3218,13 +3215,13 @@ BEGIN
         INSERT INTO session_exercises (session_id, exercise_id, exercise_order, training_method)
             VALUES (session_id, ex_id, 6, 'STRAIGHT_SETS') RETURNING id INTO se_id;
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 1, 120, 14, 7, '2026-04-28 08:63:00+00');
+            VALUES (se_id, 1, 120, 14, 7, '2026-04-28 09:03:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 2, 120, 13, 8, '2026-04-28 08:66:00+00');
+            VALUES (se_id, 2, 120, 13, 8, '2026-04-28 09:06:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 120, 12, 9, '2026-04-28 08:69:00+00');
+            VALUES (se_id, 3, 120, 12, 9, '2026-04-28 09:09:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 4, 120, 11, 9, '2026-04-28 08:72:00+00');
+            VALUES (se_id, 4, 120, 11, 9, '2026-04-28 09:12:00+00');
     END IF;
 
     -- 2026-04-30 Upper B (session 10)
@@ -3292,29 +3289,29 @@ BEGIN
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
             VALUES (se_id, 2, 11, 13, 8, '2026-04-30 08:58:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 11, 12, 9, '2026-04-30 08:61:00+00');
+            VALUES (se_id, 3, 11, 12, 9, '2026-04-30 09:01:00+00');
     END IF;
     SELECT id INTO ex_id FROM exercises WHERE name = 'Incline Bicep Curl Dumbbell';
     IF ex_id IS NOT NULL THEN
         INSERT INTO session_exercises (session_id, exercise_id, exercise_order, training_method)
             VALUES (session_id, ex_id, 6, 'STRAIGHT_SETS') RETURNING id INTO se_id;
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 1, 20, 11, 7, '2026-04-30 08:66:00+00');
+            VALUES (se_id, 1, 20, 11, 7, '2026-04-30 09:06:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 2, 20, 10, 8, '2026-04-30 08:69:00+00');
+            VALUES (se_id, 2, 20, 10, 8, '2026-04-30 09:09:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 20, 9, 9, '2026-04-30 08:72:00+00');
+            VALUES (se_id, 3, 20, 9, 9, '2026-04-30 09:12:00+00');
     END IF;
     SELECT id INTO ex_id FROM exercises WHERE name = 'Tricep Press Dumbbell Supine';
     IF ex_id IS NOT NULL THEN
         INSERT INTO session_exercises (session_id, exercise_id, exercise_order, training_method)
             VALUES (session_id, ex_id, 7, 'STRAIGHT_SETS') RETURNING id INTO se_id;
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 1, 28, 11, 7, '2026-04-30 08:77:00+00');
+            VALUES (se_id, 1, 28, 11, 7, '2026-04-30 09:17:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 2, 28, 10, 8, '2026-04-30 08:80:00+00');
+            VALUES (se_id, 2, 28, 10, 8, '2026-04-30 09:20:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 28, 9, 9, '2026-04-30 08:83:00+00');
+            VALUES (se_id, 3, 28, 9, 9, '2026-04-30 09:23:00+00');
     END IF;
 
     -- 2026-05-01 Lower B (session 10)
@@ -3387,13 +3384,13 @@ BEGIN
         INSERT INTO session_exercises (session_id, exercise_id, exercise_order, training_method)
             VALUES (session_id, ex_id, 6, 'STRAIGHT_SETS') RETURNING id INTO se_id;
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 1, 70, 14, 7, '2026-05-01 08:63:00+00');
+            VALUES (se_id, 1, 70, 14, 7, '2026-05-01 09:03:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 2, 70, 13, 8, '2026-05-01 08:66:00+00');
+            VALUES (se_id, 2, 70, 13, 8, '2026-05-01 09:06:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 70, 12, 9, '2026-05-01 08:69:00+00');
+            VALUES (se_id, 3, 70, 12, 9, '2026-05-01 09:09:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 4, 70, 11, 9, '2026-05-01 08:72:00+00');
+            VALUES (se_id, 4, 70, 11, 9, '2026-05-01 09:12:00+00');
     END IF;
 
     -- 2026-05-04 Upper A (session 11)
@@ -3461,29 +3458,29 @@ BEGIN
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
             VALUES (se_id, 2, 13, 14, 8, '2026-05-04 08:58:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 13, 13, 9, '2026-05-04 08:61:00+00');
+            VALUES (se_id, 3, 13, 13, 9, '2026-05-04 09:01:00+00');
     END IF;
     SELECT id INTO ex_id FROM exercises WHERE name = 'Bicep Curl Barbell';
     IF ex_id IS NOT NULL THEN
         INSERT INTO session_exercises (session_id, exercise_id, exercise_order, training_method)
             VALUES (session_id, ex_id, 6, 'STRAIGHT_SETS') RETURNING id INTO se_id;
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 1, 42.5, 12, 7, '2026-05-04 08:66:00+00');
+            VALUES (se_id, 1, 42.5, 12, 7, '2026-05-04 09:06:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 2, 42.5, 11, 8, '2026-05-04 08:69:00+00');
+            VALUES (se_id, 2, 42.5, 11, 8, '2026-05-04 09:09:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 42.5, 10, 9, '2026-05-04 08:72:00+00');
+            VALUES (se_id, 3, 42.5, 10, 9, '2026-05-04 09:12:00+00');
     END IF;
     SELECT id INTO ex_id FROM exercises WHERE name = 'Tricep Pushdown Cable';
     IF ex_id IS NOT NULL THEN
         INSERT INTO session_exercises (session_id, exercise_id, exercise_order, training_method)
             VALUES (session_id, ex_id, 7, 'STRAIGHT_SETS') RETURNING id INTO se_id;
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 1, 37.5, 12, 7, '2026-05-04 08:77:00+00');
+            VALUES (se_id, 1, 37.5, 12, 7, '2026-05-04 09:17:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 2, 37.5, 11, 8, '2026-05-04 08:80:00+00');
+            VALUES (se_id, 2, 37.5, 11, 8, '2026-05-04 09:20:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 37.5, 10, 9, '2026-05-04 08:83:00+00');
+            VALUES (se_id, 3, 37.5, 10, 9, '2026-05-04 09:23:00+00');
     END IF;
 
     -- 2026-05-05 Lower A (session 11)
@@ -3556,13 +3553,13 @@ BEGIN
         INSERT INTO session_exercises (session_id, exercise_id, exercise_order, training_method)
             VALUES (session_id, ex_id, 6, 'STRAIGHT_SETS') RETURNING id INTO se_id;
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 1, 130, 15, 7, '2026-05-05 08:63:00+00');
+            VALUES (se_id, 1, 130, 15, 7, '2026-05-05 09:03:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 2, 130, 14, 8, '2026-05-05 08:66:00+00');
+            VALUES (se_id, 2, 130, 14, 8, '2026-05-05 09:06:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 130, 13, 9, '2026-05-05 08:69:00+00');
+            VALUES (se_id, 3, 130, 13, 9, '2026-05-05 09:09:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 4, 130, 12, 9, '2026-05-05 08:72:00+00');
+            VALUES (se_id, 4, 130, 12, 9, '2026-05-05 09:12:00+00');
     END IF;
 
     -- 2026-05-07 Upper B (session 11)
@@ -3630,29 +3627,29 @@ BEGIN
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
             VALUES (se_id, 2, 11, 14, 8, '2026-05-07 08:58:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 11, 13, 9, '2026-05-07 08:61:00+00');
+            VALUES (se_id, 3, 11, 13, 9, '2026-05-07 09:01:00+00');
     END IF;
     SELECT id INTO ex_id FROM exercises WHERE name = 'Incline Bicep Curl Dumbbell';
     IF ex_id IS NOT NULL THEN
         INSERT INTO session_exercises (session_id, exercise_id, exercise_order, training_method)
             VALUES (session_id, ex_id, 6, 'STRAIGHT_SETS') RETURNING id INTO se_id;
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 1, 20, 12, 7, '2026-05-07 08:66:00+00');
+            VALUES (se_id, 1, 20, 12, 7, '2026-05-07 09:06:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 2, 20, 11, 8, '2026-05-07 08:69:00+00');
+            VALUES (se_id, 2, 20, 11, 8, '2026-05-07 09:09:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 20, 10, 9, '2026-05-07 08:72:00+00');
+            VALUES (se_id, 3, 20, 10, 9, '2026-05-07 09:12:00+00');
     END IF;
     SELECT id INTO ex_id FROM exercises WHERE name = 'Tricep Press Dumbbell Supine';
     IF ex_id IS NOT NULL THEN
         INSERT INTO session_exercises (session_id, exercise_id, exercise_order, training_method)
             VALUES (session_id, ex_id, 7, 'STRAIGHT_SETS') RETURNING id INTO se_id;
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 1, 28, 12, 7, '2026-05-07 08:77:00+00');
+            VALUES (se_id, 1, 28, 12, 7, '2026-05-07 09:17:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 2, 28, 11, 8, '2026-05-07 08:80:00+00');
+            VALUES (se_id, 2, 28, 11, 8, '2026-05-07 09:20:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 28, 10, 9, '2026-05-07 08:83:00+00');
+            VALUES (se_id, 3, 28, 10, 9, '2026-05-07 09:23:00+00');
     END IF;
 
     -- 2026-05-08 Lower B (session 11)
@@ -3725,13 +3722,13 @@ BEGIN
         INSERT INTO session_exercises (session_id, exercise_id, exercise_order, training_method)
             VALUES (session_id, ex_id, 6, 'STRAIGHT_SETS') RETURNING id INTO se_id;
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 1, 75, 15, 7, '2026-05-08 08:63:00+00');
+            VALUES (se_id, 1, 75, 15, 7, '2026-05-08 09:03:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 2, 75, 14, 8, '2026-05-08 08:66:00+00');
+            VALUES (se_id, 2, 75, 14, 8, '2026-05-08 09:06:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 75, 13, 9, '2026-05-08 08:69:00+00');
+            VALUES (se_id, 3, 75, 13, 9, '2026-05-08 09:09:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 4, 75, 12, 9, '2026-05-08 08:72:00+00');
+            VALUES (se_id, 4, 75, 12, 9, '2026-05-08 09:12:00+00');
     END IF;
 
     -- 2026-05-11 Upper A (session 12)
@@ -3799,29 +3796,29 @@ BEGIN
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
             VALUES (se_id, 2, 13, 15, 8, '2026-05-11 08:58:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 13, 14, 9, '2026-05-11 08:61:00+00');
+            VALUES (se_id, 3, 13, 14, 9, '2026-05-11 09:01:00+00');
     END IF;
     SELECT id INTO ex_id FROM exercises WHERE name = 'Bicep Curl Barbell';
     IF ex_id IS NOT NULL THEN
         INSERT INTO session_exercises (session_id, exercise_id, exercise_order, training_method)
             VALUES (session_id, ex_id, 6, 'STRAIGHT_SETS') RETURNING id INTO se_id;
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 1, 42.5, 13, 7, '2026-05-11 08:66:00+00');
+            VALUES (se_id, 1, 42.5, 13, 7, '2026-05-11 09:06:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 2, 42.5, 12, 8, '2026-05-11 08:69:00+00');
+            VALUES (se_id, 2, 42.5, 12, 8, '2026-05-11 09:09:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 42.5, 11, 9, '2026-05-11 08:72:00+00');
+            VALUES (se_id, 3, 42.5, 11, 9, '2026-05-11 09:12:00+00');
     END IF;
     SELECT id INTO ex_id FROM exercises WHERE name = 'Tricep Pushdown Cable';
     IF ex_id IS NOT NULL THEN
         INSERT INTO session_exercises (session_id, exercise_id, exercise_order, training_method)
             VALUES (session_id, ex_id, 7, 'STRAIGHT_SETS') RETURNING id INTO se_id;
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 1, 37.5, 13, 7, '2026-05-11 08:77:00+00');
+            VALUES (se_id, 1, 37.5, 13, 7, '2026-05-11 09:17:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 2, 37.5, 12, 8, '2026-05-11 08:80:00+00');
+            VALUES (se_id, 2, 37.5, 12, 8, '2026-05-11 09:20:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 37.5, 11, 9, '2026-05-11 08:83:00+00');
+            VALUES (se_id, 3, 37.5, 11, 9, '2026-05-11 09:23:00+00');
     END IF;
 
     -- 2026-05-12 Lower A (session 12)
@@ -3894,13 +3891,13 @@ BEGIN
         INSERT INTO session_exercises (session_id, exercise_id, exercise_order, training_method)
             VALUES (session_id, ex_id, 6, 'STRAIGHT_SETS') RETURNING id INTO se_id;
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 1, 130, 16, 7, '2026-05-12 08:63:00+00');
+            VALUES (se_id, 1, 130, 16, 7, '2026-05-12 09:03:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 2, 130, 15, 8, '2026-05-12 08:66:00+00');
+            VALUES (se_id, 2, 130, 15, 8, '2026-05-12 09:06:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 130, 14, 9, '2026-05-12 08:69:00+00');
+            VALUES (se_id, 3, 130, 14, 9, '2026-05-12 09:09:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 4, 130, 13, 9, '2026-05-12 08:72:00+00');
+            VALUES (se_id, 4, 130, 13, 9, '2026-05-12 09:12:00+00');
     END IF;
 
     -- 2026-05-14 Upper B (session 12)
@@ -3968,29 +3965,29 @@ BEGIN
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
             VALUES (se_id, 2, 11, 15, 8, '2026-05-14 08:58:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 11, 14, 9, '2026-05-14 08:61:00+00');
+            VALUES (se_id, 3, 11, 14, 9, '2026-05-14 09:01:00+00');
     END IF;
     SELECT id INTO ex_id FROM exercises WHERE name = 'Incline Bicep Curl Dumbbell';
     IF ex_id IS NOT NULL THEN
         INSERT INTO session_exercises (session_id, exercise_id, exercise_order, training_method)
             VALUES (session_id, ex_id, 6, 'STRAIGHT_SETS') RETURNING id INTO se_id;
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 1, 20, 13, 7, '2026-05-14 08:66:00+00');
+            VALUES (se_id, 1, 20, 13, 7, '2026-05-14 09:06:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 2, 20, 12, 8, '2026-05-14 08:69:00+00');
+            VALUES (se_id, 2, 20, 12, 8, '2026-05-14 09:09:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 20, 11, 9, '2026-05-14 08:72:00+00');
+            VALUES (se_id, 3, 20, 11, 9, '2026-05-14 09:12:00+00');
     END IF;
     SELECT id INTO ex_id FROM exercises WHERE name = 'Tricep Press Dumbbell Supine';
     IF ex_id IS NOT NULL THEN
         INSERT INTO session_exercises (session_id, exercise_id, exercise_order, training_method)
             VALUES (session_id, ex_id, 7, 'STRAIGHT_SETS') RETURNING id INTO se_id;
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 1, 28, 13, 7, '2026-05-14 08:77:00+00');
+            VALUES (se_id, 1, 28, 13, 7, '2026-05-14 09:17:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 2, 28, 12, 8, '2026-05-14 08:80:00+00');
+            VALUES (se_id, 2, 28, 12, 8, '2026-05-14 09:20:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 28, 11, 9, '2026-05-14 08:83:00+00');
+            VALUES (se_id, 3, 28, 11, 9, '2026-05-14 09:23:00+00');
     END IF;
 
     -- 2026-05-15 Lower B (session 12)
@@ -4063,13 +4060,13 @@ BEGIN
         INSERT INTO session_exercises (session_id, exercise_id, exercise_order, training_method)
             VALUES (session_id, ex_id, 6, 'STRAIGHT_SETS') RETURNING id INTO se_id;
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 1, 75, 16, 7, '2026-05-15 08:63:00+00');
+            VALUES (se_id, 1, 75, 16, 7, '2026-05-15 09:03:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 2, 75, 15, 8, '2026-05-15 08:66:00+00');
+            VALUES (se_id, 2, 75, 15, 8, '2026-05-15 09:06:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 3, 75, 14, 9, '2026-05-15 08:69:00+00');
+            VALUES (se_id, 3, 75, 14, 9, '2026-05-15 09:09:00+00');
         INSERT INTO exercise_sets (session_exercise_id, set_number, weight_kg, reps, rpe, completed_at)
-            VALUES (se_id, 4, 75, 13, 9, '2026-05-15 08:72:00+00');
+            VALUES (se_id, 4, 75, 13, 9, '2026-05-15 09:12:00+00');
     END IF;
 
     -- Body weight logs
