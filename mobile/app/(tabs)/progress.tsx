@@ -4,7 +4,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueries } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
 import Svg, {
@@ -34,7 +34,16 @@ interface PersistedFilter {
   selectedExerciseIds: number[];
 }
 
-const SERIES_COLORS = [Colors.primary, Colors.success, '#F59E0B', '#8B5CF6'];
+const SERIES_COLORS = [
+  Colors.primary,
+  Colors.success,
+  '#F59E0B',
+  '#8B5CF6',
+  '#EC4899',
+  '#06B6D4',
+  '#F97316',
+  '#10B981',
+];
 const FILTER_KEY = 'progress_filter_v1';
 
 // ─── Grafana-style SVG line chart ───────────────────────────────────────────────
@@ -156,7 +165,7 @@ function GrafanaLineChart({ series, width, height, formatX, formatY, yUnit = '' 
           </SvgText>
         ))}
 
-        {/* Series: gradient fill + smooth line + dots (hidden unless tapped) */}
+        {/* Series: gradient fill + smooth line + dots */}
         {series.map((s, si) => {
           if (s.data.length < 1) return null;
           const pts = s.data.map((p) => ({ x: xOf(p.x), y: yOf(p.y), orig: p }));
@@ -169,13 +178,11 @@ function GrafanaLineChart({ series, width, height, formatX, formatY, yUnit = '' 
                     fill="none" strokeLinecap="round" strokeLinejoin="round" />
                 </>
               )}
-              {/* Dots — opacity 0 by default; only tapped dot becomes visible */}
               {pts.map((pt, pi) => (
                 <Circle key={pi} cx={pt.x} cy={pt.y} r={4}
                   fill={Colors.surface} stroke={s.color} strokeWidth={2}
                   opacity={tooltip?.seriesIdx === si && tooltip?.pointIdx === pi ? 1 : 0} />
               ))}
-              {/* Invisible wide hit targets for tap detection */}
               {pts.map((pt, pi) => (
                 <Circle key={`h${pi}`} cx={pt.x} cy={pt.y} r={14}
                   fill="transparent"
@@ -193,7 +200,7 @@ function GrafanaLineChart({ series, width, height, formatX, formatY, yUnit = '' 
 
         {/* Tooltip */}
         {tooltip && (() => {
-          const TW = 86; const TH = 40; const RAD = 6;
+          const TW = 110; const TH = 40; const RAD = 6;
           const tx = Math.min(Math.max(tooltip.px - TW / 2, PAD.left), PAD.left + W - TW);
           const ty = tooltip.py > PAD.top + H / 2
             ? tooltip.py - TH - 10
@@ -231,7 +238,115 @@ function GrafanaLineChart({ series, width, height, formatX, formatY, yUnit = '' 
   );
 }
 
-// ─── Exercise tile ──────────────────────────────────────────────────────────────
+// ─── Filter chip ────────────────────────────────────────────────────────────────
+
+function FilterChip({ label, active, onPress, activeColor }: {
+  label: string;
+  active: boolean;
+  onPress: () => void;
+  activeColor?: string;
+}) {
+  const color = activeColor ?? Colors.primary;
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      style={{
+        paddingHorizontal: 10, paddingVertical: 4, borderRadius: Radius.full,
+        backgroundColor: active ? `${color}22` : Colors.surfaceSubtle,
+        borderWidth: 1, borderColor: active ? color : Colors.border,
+      }}>
+      <Text style={{ fontSize: 10, fontWeight: FontWeight.medium,
+        color: active ? color : Colors.textSecondary }}>{label}</Text>
+    </TouchableOpacity>
+  );
+}
+
+// ─── Workout progress card (one graph, one line per exercise) ────────────────────
+
+function WorkoutProgressCard({ exercises, selectedIds, onToggle, chartWidth }: {
+  exercises: ExerciseResponse[];
+  selectedIds: number[];
+  onToggle: (id: number) => void;
+  chartWidth: number;
+}) {
+  const progressQueries = useQueries({
+    queries: exercises.map((ex) => ({
+      queryKey: ['exerciseProgress', ex.id],
+      queryFn: () => progressApi.getExerciseProgress(ex.id),
+    })),
+  });
+
+  const isLoading = progressQueries.some((q) => q.isLoading);
+
+  // Build one series per toggled-on exercise using set-1 weight per session date
+  const series = useMemo((): ChartSeries[] => {
+    return exercises
+      .map((ex, i) => {
+        if (!selectedIds.includes(ex.id)) return null;
+        const data = progressQueries[i]?.data;
+        if (!data) return null;
+        const set1 = data.series
+          .filter((p) => p.setNumber === 1)
+          .sort((a, b) => a.date.localeCompare(b.date));
+        if (!set1.length) return null;
+        return {
+          label: ex.name,
+          color: SERIES_COLORS[i % SERIES_COLORS.length],
+          data: set1.map((p) => ({
+            x: new Date(p.date).getTime(),
+            y: Number(p.weightKg ?? 0),
+          })),
+        } as ChartSeries;
+      })
+      .filter((s): s is ChartSeries => s !== null);
+  }, [exercises, selectedIds, progressQueries]);
+
+  return (
+    <View style={{
+      backgroundColor: Colors.surface, borderRadius: Radius.xl,
+      padding: Spacing.md, marginBottom: Spacing.md, ...Shadow.card,
+    }}>
+      {/* Header */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: Spacing.sm }}>
+        <Ionicons name="trending-up-outline" size={16} color={Colors.textSecondary} />
+        <Text style={{ fontSize: FontSize.md, fontWeight: FontWeight.semibold,
+          color: Colors.textPrimary }}>Weight Progress</Text>
+        <Text style={{ fontSize: FontSize.xs, color: Colors.textMuted }}>· kg, set 1</Text>
+      </View>
+
+      {/* Exercise toggles — colored to match their line */}
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: Spacing.md }}>
+        {exercises.map((ex, i) => (
+          <FilterChip
+            key={ex.id}
+            label={ex.name}
+            active={selectedIds.includes(ex.id)}
+            onPress={() => onToggle(ex.id)}
+            activeColor={SERIES_COLORS[i % SERIES_COLORS.length]}
+          />
+        ))}
+      </View>
+
+      {/* Chart */}
+      {isLoading ? (
+        <View style={{ height: 240, alignItems: 'center', justifyContent: 'center' }}>
+          <ActivityIndicator color={Colors.primary} />
+        </View>
+      ) : (
+        <GrafanaLineChart
+          series={series}
+          width={chartWidth}
+          height={240}
+          formatX={(v) => format(new Date(v), 'MMM d')}
+          formatY={(v) => `${Math.round(v)}`}
+          yUnit="kg"
+        />
+      )}
+    </View>
+  );
+}
+
+// ─── Exercise tile (All mode) ────────────────────────────────────────────────────
 
 function ExerciseTile({ exercise, chartWidth }: {
   exercise: ExerciseResponse;
@@ -262,18 +377,10 @@ function ExerciseTile({ exercise, chartWidth }: {
     return result.sort((a, b) => a - b);
   }, [progressData]);
 
-  // availableSets kept only for reference (no longer used in UI)
-  const availableSets = useMemo(() => {
-    if (!progressData) return [];
-    return [...new Set(progressData.series.map((p) => p.setNumber))].sort((a, b) => a - b);
-  }, [progressData]);
-  void availableSets; // suppress unused warning
-
   const series = useMemo((): ChartSeries[] => {
     if (!progressData) return [];
 
     if (chartType === 'weight') {
-      // Weight mode: show only set 1 as a single series (weight is the same across sets)
       const set1 = progressData.series
         .filter((p) => p.setNumber === 1)
         .sort((a, b) => a.date.localeCompare(b.date));
@@ -288,7 +395,6 @@ function ExerciseTile({ exercise, chartWidth }: {
       }];
     }
 
-    // Reps mode: show all sets (filtered by weight if selected), fixed colors
     let pts = progressData.series;
     if (selectedWeight !== null) {
       pts = pts.filter((p) => Math.abs(Number(p.weightKg) - selectedWeight) < 0.01);
@@ -296,7 +402,7 @@ function ExerciseTile({ exercise, chartWidth }: {
     const setNums = [...new Set(pts.map((p) => p.setNumber))].sort((a, b) => a - b);
     return setNums.slice(0, 4).map((sn, i) => ({
       label: `Set ${sn}`,
-      color: SERIES_COLORS[i],   // fixed per-set color: blue, green, yellow, purple
+      color: SERIES_COLORS[i],
       data: pts
         .filter((p) => p.setNumber === sn)
         .sort((a, b) => a.date.localeCompare(b.date))
@@ -315,7 +421,7 @@ function ExerciseTile({ exercise, chartWidth }: {
       backgroundColor: Colors.surface, borderRadius: Radius.xl,
       padding: Spacing.md, marginBottom: Spacing.md, ...Shadow.card,
     }}>
-      {/* Header — always visible */}
+      {/* Header */}
       <TouchableOpacity
         onPress={() => setExpanded((v) => !v)}
         style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' }}
@@ -325,7 +431,6 @@ function ExerciseTile({ exercise, chartWidth }: {
           <Text style={{ fontSize: FontSize.md, fontWeight: FontWeight.semibold,
             color: Colors.textPrimary }}>{exercise.name}</Text>
           <View style={{ flexDirection: 'row', gap: 4, marginTop: 4, flexWrap: 'wrap' }}>
-            {/* Primary (agonist) — blue */}
             {primaryMuscles.map((m) => (
               <View key={`p-${m.muscleGroupId}`} style={{
                 backgroundColor: Colors.primaryTint, borderRadius: Radius.full,
@@ -334,7 +439,6 @@ function ExerciseTile({ exercise, chartWidth }: {
                 <Text style={{ fontSize: 10, color: Colors.primary }}>{m.muscleGroupName}</Text>
               </View>
             ))}
-            {/* Secondary (synergist) — gray */}
             {secondaryMuscles.map((m) => (
               <View key={`s-${m.muscleGroupId}`} style={{
                 backgroundColor: Colors.surfaceSubtle, borderRadius: Radius.full,
@@ -371,7 +475,7 @@ function ExerciseTile({ exercise, chartWidth }: {
             ))}
           </View>
 
-          {/* Weight filter — reps mode only; no "All" chip */}
+          {/* Weight filter — reps mode only */}
           {chartType === 'reps' && availableWeights.length > 1 && (
             <View style={{ marginBottom: Spacing.xs }}>
               <Text style={{ fontSize: FontSize.xs, color: Colors.textMuted, marginBottom: 4 }}>
@@ -410,25 +514,6 @@ function ExerciseTile({ exercise, chartWidth }: {
         </View>
       )}
     </View>
-  );
-}
-
-// ─── Filter chip ────────────────────────────────────────────────────────────────
-
-function FilterChip({ label, active, onPress }: {
-  label: string; active: boolean; onPress: () => void;
-}) {
-  return (
-    <TouchableOpacity
-      onPress={onPress}
-      style={{
-        paddingHorizontal: 10, paddingVertical: 4, borderRadius: Radius.full,
-        backgroundColor: active ? Colors.primary : Colors.surfaceSubtle,
-        borderWidth: 1, borderColor: active ? Colors.primary : Colors.border,
-      }}>
-      <Text style={{ fontSize: 10, fontWeight: FontWeight.medium,
-        color: active ? Colors.textInverse : Colors.textSecondary }}>{label}</Text>
-    </TouchableOpacity>
   );
 }
 
@@ -517,7 +602,7 @@ export default function ProgressScreen() {
 
   const workoutTemplates = program?.workoutTemplates ?? [];
 
-  // Exercises available in the filter panel (scoped by selected workout)
+  // Exercises available for the filter panel (scoped by selected workout)
   const exercisesForFilter: ExerciseResponse[] = useMemo(() => {
     if (selectedWorkoutId === null) {
       const all = workoutTemplates.flatMap((t) => t.exercises.map((e) => e.exercise));
@@ -527,7 +612,7 @@ export default function ProgressScreen() {
     return tmpl?.exercises.map((e) => e.exercise) ?? [];
   }, [workoutTemplates, selectedWorkoutId]);
 
-  // Exercise tiles — only selected ones are shown; default is empty (body weight only)
+  // Exercises to show in "All" mode (individual tiles)
   const visibleExercises: ExerciseResponse[] = useMemo(() => {
     if (selectedExerciseIds.length === 0) return [];
     return exercisesForFilter.filter((e) => selectedExerciseIds.includes(e.id));
@@ -536,13 +621,11 @@ export default function ProgressScreen() {
   const handleWorkoutSelect = (id: number | null) => {
     setSelectedWorkoutId(id);
     if (id !== null) {
-      // Auto-select ALL exercises for the chosen workout
+      // Auto-select all exercises for the chosen workout
       const tmpl = workoutTemplates.find((t) => t.id === id);
       const allIds = tmpl?.exercises.map((e) => e.exercise.id) ?? [];
       setSelectedExerciseIds(allIds);
     }
-    // When reverting to "All", keep current exercise selections intact so the user
-    // can manually refine; they can also deselect individually.
   };
 
   const toggleExercise = (id: number) => {
@@ -551,9 +634,11 @@ export default function ProgressScreen() {
     );
   };
 
-  const filterSummary = selectedExerciseIds.length === 0
-    ? 'Body weight only'
-    : `${selectedExerciseIds.length} exercise${selectedExerciseIds.length === 1 ? '' : 's'} selected`;
+  const filterSummary = selectedWorkoutId !== null
+    ? (workoutTemplates.find((t) => t.id === selectedWorkoutId)?.name ?? 'Workout')
+    : selectedExerciseIds.length === 0
+      ? 'Body weight only'
+      : `${selectedExerciseIds.length} exercise${selectedExerciseIds.length === 1 ? '' : 's'} selected`;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: Colors.surfaceMuted }}>
@@ -566,7 +651,6 @@ export default function ProgressScreen() {
         {/* Collapsible filter section */}
         {workoutTemplates.length > 0 && (
           <View style={{ marginBottom: Spacing.md }}>
-            {/* Toggle row */}
             <TouchableOpacity
               onPress={() => setFiltersOpen((v) => !v)}
               activeOpacity={0.7}
@@ -592,7 +676,6 @@ export default function ProgressScreen() {
                 size={16} color={Colors.textMuted} />
             </TouchableOpacity>
 
-            {/* Expanded body */}
             {filtersOpen && (
               <View style={{
                 backgroundColor: Colors.surface,
@@ -621,7 +704,7 @@ export default function ProgressScreen() {
                   </View>
                 </ScrollView>
 
-                {/* Exercise chips — only show individual selection when "All" workouts active */}
+                {/* Exercise chips — only in All mode */}
                 {selectedWorkoutId === null && (
                   <>
                     <Text style={{ fontSize: FontSize.xs, color: Colors.textSecondary,
@@ -641,9 +724,11 @@ export default function ProgressScreen() {
                     )}
                   </>
                 )}
+
+                {/* Hint in workout mode */}
                 {selectedWorkoutId !== null && (
                   <Text style={{ fontSize: FontSize.xs, color: Colors.textMuted, fontStyle: 'italic' }}>
-                    All exercises for this workout are shown.
+                    Toggle individual exercises directly on the chart below.
                   </Text>
                 )}
               </View>
@@ -651,18 +736,28 @@ export default function ProgressScreen() {
           </View>
         )}
 
-        {/* Exercise tiles (only selected ones) */}
-        {visibleExercises.map((ex) => (
+        {/* Workout mode: single combined graph */}
+        {selectedWorkoutId !== null && exercisesForFilter.length > 0 && (
+          <WorkoutProgressCard
+            exercises={exercisesForFilter}
+            selectedIds={selectedExerciseIds}
+            onToggle={toggleExercise}
+            chartWidth={chartWidth}
+          />
+        )}
+
+        {/* All mode: individual exercise tiles */}
+        {selectedWorkoutId === null && visibleExercises.map((ex) => (
           <ExerciseTile key={ex.id} exercise={ex} chartWidth={chartWidth} />
         ))}
 
-        {/* Body weight chart — always shown when data exists */}
+        {/* Body weight — always shown when data exists */}
         {(bodyWeights?.length ?? 0) >= 2 && (
           <BodyWeightChartCard bodyWeights={bodyWeights!} chartWidth={chartWidth} />
         )}
 
         {/* Empty state */}
-        {visibleExercises.length === 0 && (bodyWeights?.length ?? 0) < 2 && (
+        {selectedWorkoutId === null && visibleExercises.length === 0 && (bodyWeights?.length ?? 0) < 2 && (
           <View style={{ backgroundColor: Colors.surface, borderRadius: Radius.xl,
             padding: Spacing.xl, alignItems: 'center', ...Shadow.card }}>
             <Ionicons name="trending-up-outline" size={36} color={Colors.textMuted} />

@@ -5,20 +5,20 @@ import jakarta.persistence.*;
 import lombok.*;
 
 @Entity
-@Table(name = "exercise_muscles",
-       uniqueConstraints = @UniqueConstraint(columnNames = {"exercise_id", "muscle_group_id"}))
+@Table(name = "exercise_muscles")
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class ExerciseMuscle {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @EmbeddedId
+    private ExerciseMuscleId id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @MapsId("exerciseId")
     @JoinColumn(name = "exercise_id")
     private Exercise exercise;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @MapsId("muscleGroupId")
     @JoinColumn(name = "muscle_group_id")
     private MuscleGroup muscleGroup;
 
