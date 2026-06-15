@@ -77,8 +77,9 @@ export default function DashboardScreen() {
   const queryClient  = useQueryClient();
   const { width: windowWidth } = useWindowDimensions();
   const { weightGoal, startWeight, hydrate, isHydrated } = useSettingsStore();
-  const [bwModalOpen, setBwModalOpen] = useState(false);
-  const [bwInput, setBwInput]         = useState('');
+  const [bwModalOpen, setBwModalOpen]                         = useState(false);
+  const [bwInput, setBwInput]                                 = useState('');
+  const [dayPickerTemplate, setDayPickerTemplate]             = useState<WorkoutTemplateResponse | null>(null);
 
   useEffect(() => { if (!isHydrated) hydrate(); }, []);
 
@@ -157,6 +158,7 @@ export default function DashboardScreen() {
             totalScheduled={scheduledIndices.size}
             templates={program.workoutTemplates}
             weekStart={monday}
+            onChipPress={(tmpl) => setDayPickerTemplate(tmpl)}
           />
         )}
 
@@ -212,6 +214,23 @@ export default function DashboardScreen() {
         )}
       </ScrollView>
 
+      {/* ── Day picker modal ──────────────────────────────────────────────────── */}
+      {dayPickerTemplate && (
+        <DayPickerModal
+          template={dayPickerTemplate}
+          onClose={() => setDayPickerTemplate(null)}
+          onSave={(newDay) => {
+            workoutsApi.updateTemplate(dayPickerTemplate.id, { dayIndex: newDay })
+              .then(() => {
+                queryClient.invalidateQueries({ queryKey: ['activeProgram'] });
+                queryClient.invalidateQueries({ queryKey: ['programs'] });
+              })
+              .catch(() => {})
+              .finally(() => setDayPickerTemplate(null));
+          }}
+        />
+      )}
+
       {/* ── Log body weight modal ──────────────────────────────────────────────── */}
       <Modal visible={bwModalOpen} animationType="slide" transparent>
         <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.3)' }}>
@@ -262,12 +281,13 @@ export default function DashboardScreen() {
 
 // ─── Week strip ───────────────────────────────────────────────────────────────
 
-function WeekStrip({ scheduledIndices, completedCount, totalScheduled, templates, weekStart }: {
+function WeekStrip({ scheduledIndices, completedCount, totalScheduled, templates, weekStart, onChipPress }: {
   scheduledIndices: Set<number>;
   completedCount: number;
   totalScheduled: number;
   templates: WorkoutTemplateResponse[];
   weekStart: Date;
+  onChipPress: (template: WorkoutTemplateResponse) => void;
 }) {
   const DAY_ABBR = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
   const todayIdx = (new Date().getDay() + 6) % 7;
@@ -289,14 +309,18 @@ function WeekStrip({ scheduledIndices, completedCount, totalScheduled, templates
         marginBottom: Spacing.sm }}>
         <Text style={{ fontSize: FontSize.xs, color: Colors.textSecondary,
           fontWeight: FontWeight.medium }}>This Week</Text>
-        <View style={{ backgroundColor: Colors.primaryTint, borderRadius: Radius.full,
-          paddingHorizontal: 8, paddingVertical: 2 }}>
-          <Text style={{ fontSize: 10, color: Colors.primary,
-            fontWeight: FontWeight.semibold }}>Week {isoWeek}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <Ionicons name="pencil-outline" size={11} color={Colors.textMuted} />
+          <Text style={{ fontSize: 10, color: Colors.textMuted }}>Tap to reschedule</Text>
+          <View style={{ backgroundColor: Colors.primaryTint, borderRadius: Radius.full,
+            paddingHorizontal: 8, paddingVertical: 2 }}>
+            <Text style={{ fontSize: 10, color: Colors.primary,
+              fontWeight: FontWeight.semibold }}>Week {isoWeek}</Text>
+          </View>
         </View>
       </View>
 
-      {/* Day chips */}
+      {/* Day chips — tappable to reschedule */}
       <View style={{ flexDirection: 'row', justifyContent: 'space-around',
         marginBottom: Spacing.sm }}>
         {days.map((idx) => {
@@ -306,7 +330,11 @@ function WeekStrip({ scheduledIndices, completedCount, totalScheduled, templates
           const dayDate   = dateForDayIdx(idx);
 
           return (
-            <View key={idx} style={{ alignItems: 'center', gap: 3 }}>
+            <TouchableOpacity
+              key={idx}
+              onPress={() => tmpl && onChipPress(tmpl)}
+              activeOpacity={tmpl ? 0.7 : 1}
+              style={{ alignItems: 'center', gap: 3 }}>
               <Text style={{ fontSize: FontSize.xs, color: Colors.textMuted }}>
                 {DAY_ABBR[idx]}
               </Text>
@@ -326,7 +354,7 @@ function WeekStrip({ scheduledIndices, completedCount, totalScheduled, templates
                 fontWeight: isToday ? FontWeight.semibold : FontWeight.regular }}>
                 {format(dayDate, 'MMM d')}
               </Text>
-            </View>
+            </TouchableOpacity>
           );
         })}
       </View>
@@ -340,6 +368,73 @@ function WeekStrip({ scheduledIndices, completedCount, totalScheduled, templates
       <Text style={{ fontSize: FontSize.xs, color: Colors.textSecondary,
         marginTop: 4, textAlign: 'right' }}>{completedCount}/{totalScheduled} this week</Text>
     </View>
+  );
+}
+
+// ─── Day picker modal ─────────────────────────────────────────────────────────
+
+function DayPickerModal({ template, onClose, onSave }: {
+  template: WorkoutTemplateResponse;
+  onClose: () => void;
+  onSave: (dayIndex: number) => void;
+}) {
+  const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  const [selected, setSelected] = useState(template.dayIndex);
+
+  return (
+    <Modal visible transparent animationType="fade">
+      <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)',
+        justifyContent: 'center', alignItems: 'center', padding: Spacing.lg }}>
+        <View style={{ backgroundColor: Colors.surface, borderRadius: Radius.xl,
+          padding: Spacing.lg, width: '100%', maxWidth: 340, ...Shadow.float }}>
+          <Text style={{ fontSize: FontSize.lg, fontWeight: FontWeight.bold,
+            color: Colors.textPrimary, marginBottom: 4 }}>{template.name}</Text>
+          <Text style={{ fontSize: FontSize.sm, color: Colors.textSecondary,
+            marginBottom: Spacing.md }}>Move to a different day of the week</Text>
+
+          {DAY_NAMES.map((name, idx) => {
+            const isSelected = idx === selected;
+            return (
+              <TouchableOpacity key={idx} onPress={() => setSelected(idx)}
+                style={{ flexDirection: 'row', alignItems: 'center',
+                  paddingVertical: 11, paddingHorizontal: Spacing.sm,
+                  borderRadius: Radius.md, marginBottom: 4,
+                  backgroundColor: isSelected ? Colors.primaryTint : 'transparent' }}>
+                <View style={{ width: 22, height: 22, borderRadius: 11,
+                  borderWidth: 2,
+                  borderColor: isSelected ? Colors.primary : Colors.border,
+                  backgroundColor: isSelected ? Colors.primary : 'transparent',
+                  alignItems: 'center', justifyContent: 'center', marginRight: Spacing.md }}>
+                  {isSelected && <Ionicons name="checkmark" size={13} color={Colors.textInverse} />}
+                </View>
+                <Text style={{ fontSize: FontSize.md,
+                  color: isSelected ? Colors.primary : Colors.textPrimary,
+                  fontWeight: isSelected ? FontWeight.semibold : FontWeight.regular }}>
+                  {name}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+
+          <View style={{ flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.md }}>
+            <TouchableOpacity onPress={onClose}
+              style={{ flex: 1, borderRadius: Radius.md, paddingVertical: 13,
+                alignItems: 'center', borderWidth: 1, borderColor: Colors.border }}>
+              <Text style={{ color: Colors.textSecondary, fontWeight: FontWeight.medium }}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => onSave(selected)}
+              disabled={selected === template.dayIndex}
+              style={{ flex: 1, borderRadius: Radius.md, paddingVertical: 13,
+                alignItems: 'center',
+                backgroundColor: selected === template.dayIndex ? Colors.surfaceSubtle : Colors.primary }}>
+              <Text style={{ color: selected === template.dayIndex ? Colors.textMuted : Colors.textInverse,
+                fontWeight: FontWeight.semibold }}>Save</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
   );
 }
 
@@ -519,109 +614,4 @@ function TodayCard({ template }: { template: WorkoutTemplateResponse }) {
             <Text style={{ fontSize: FontSize.xs, color: Colors.primaryLight,
               fontWeight: FontWeight.medium, textTransform: 'uppercase',
               letterSpacing: 0.5 }}>Today · Tap to start</Text>
-            <Text style={{ fontSize: FontSize.xl, fontWeight: FontWeight.bold,
-              color: Colors.textInverse, marginTop: 2 }}>{template.name}</Text>
-          </View>
-          <View style={{ width: 44, height: 44, borderRadius: 22,
-            backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center',
-            justifyContent: 'center' }}>
-            <Ionicons name="play" size={22} color={Colors.textInverse} />
-          </View>
-        </View>
-
-        {/* Muscle chips */}
-        {muscles.length > 0 && (
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: Spacing.sm }}>
-            {muscles.map((m) => (
-              <View key={m} style={{ backgroundColor: 'rgba(255,255,255,0.15)',
-                borderRadius: Radius.full, paddingHorizontal: 10, paddingVertical: 4 }}>
-                <Text style={{ fontSize: FontSize.xs, color: Colors.textInverse }}>{m}</Text>
-              </View>
-            ))}
-          </View>
-        )}
-      </View>
-    </TouchableOpacity>
-  );
-}
-
-// ─── Rest day card ────────────────────────────────────────────────────────────
-
-function RestDayCard() {
-  return (
-    <View style={{ backgroundColor: Colors.surface, borderRadius: Radius.lg,
-      padding: Spacing.md, marginBottom: Spacing.md, ...Shadow.card,
-      flexDirection: 'row', alignItems: 'center', gap: Spacing.md }}>
-      <View style={{ width: 44, height: 44, borderRadius: 22,
-        backgroundColor: Colors.successTint, alignItems: 'center', justifyContent: 'center' }}>
-        <Ionicons name="bed-outline" size={22} color={Colors.success} />
-      </View>
-      <View style={{ flex: 1 }}>
-        <Text style={{ fontSize: FontSize.md, fontWeight: FontWeight.semibold,
-          color: Colors.textPrimary }}>Rest Day</Text>
-        <Text style={{ fontSize: FontSize.sm, color: Colors.textSecondary }}>
-          Recovery is part of the program. See you tomorrow.
-        </Text>
-      </View>
-    </View>
-  );
-}
-
-// ─── Setup program card ───────────────────────────────────────────────────────
-
-function SetupProgramCard() {
-  return (
-    <View style={{ backgroundColor: Colors.surface, borderRadius: Radius.lg,
-      padding: Spacing.md, marginBottom: Spacing.md, ...Shadow.card }}>
-      <Text style={{ fontSize: FontSize.md, fontWeight: FontWeight.semibold,
-        color: Colors.textPrimary, marginBottom: 4 }}>No active program</Text>
-      <Text style={{ fontSize: FontSize.sm, color: Colors.textSecondary,
-        marginBottom: Spacing.md }}>
-        Create a program to start tracking your workouts.
-      </Text>
-      <TouchableOpacity
-        onPress={() => router.push('/program/setup')}
-        style={{ backgroundColor: Colors.primary, borderRadius: Radius.md,
-          paddingVertical: 12, alignItems: 'center' }}>
-        <Text style={{ color: Colors.textInverse, fontWeight: FontWeight.semibold }}>
-          Create Program
-        </Text>
-      </TouchableOpacity>
-    </View>
-  );
-}
-
-// ─── Program overview card ────────────────────────────────────────────────────
-
-function ProgramOverviewCard({ templates }: { templates: WorkoutTemplateResponse[] }) {
-  const DAY_ABBR = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-  return (
-    <View style={{ backgroundColor: Colors.surface, borderRadius: Radius.lg,
-      padding: Spacing.md, marginTop: Spacing.sm, ...Shadow.card }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6,
-        marginBottom: Spacing.sm }}>
-        <Ionicons name="calendar-outline" size={16} color={Colors.textSecondary} />
-        <Text style={{ fontSize: FontSize.sm, fontWeight: FontWeight.medium,
-          color: Colors.textSecondary }}>Weekly Schedule</Text>
-      </View>
-      {templates.sort((a, b) => a.dayIndex - b.dayIndex).map((t) => (
-        <View key={t.id} style={{ flexDirection: 'row', alignItems: 'center',
-          paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: Colors.border }}>
-          <View style={{ width: 36, height: 36, borderRadius: 18,
-            backgroundColor: Colors.primaryTint, alignItems: 'center', justifyContent: 'center',
-            marginRight: Spacing.md }}>
-            <Text style={{ fontSize: FontSize.xs, fontWeight: FontWeight.bold,
-              color: Colors.primary }}>{DAY_ABBR[t.dayIndex]}</Text>
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={{ fontSize: FontSize.sm, fontWeight: FontWeight.medium,
-              color: Colors.textPrimary }}>{t.name}</Text>
-            <Text style={{ fontSize: FontSize.xs, color: Colors.textMuted }}>
-              {t.exercises.length} exercise{t.exercises.length !== 1 ? 's' : ''}
-            </Text>
-          </View>
-        </View>
-      ))}
-    </View>
-  );
-}
+       

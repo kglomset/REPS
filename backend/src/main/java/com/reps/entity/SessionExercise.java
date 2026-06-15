@@ -4,6 +4,8 @@ import com.reps.enums.TrainingMethod;
 import jakarta.persistence.*;
 import lombok.*;
 
+import org.hibernate.annotations.BatchSize;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -40,6 +42,5 @@ public class SessionExercise {
 
     @OneToMany(mappedBy = "sessionExercise", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("setNumber ASC")
-    @Builder.Default
-    private List<ExerciseSet> sets = new ArrayList<>();
-}
+    @BatchSize(size = 30)
+    @Bui

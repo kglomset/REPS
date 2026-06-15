@@ -11,8 +11,9 @@ public interface WorkoutSessionRepository extends JpaRepository<WorkoutSession, 
 
     List<WorkoutSession> findByUserIdOrderByStartedAtDesc(Long userId);
 
-    @Query("SELECT s FROM WorkoutSession s LEFT JOIN FETCH s.exercises e " +
-           "LEFT JOIN FETCH e.sets LEFT JOIN FETCH e.exercise " +
+    @Query("SELECT DISTINCT s FROM WorkoutSession s " +
+           "LEFT JOIN FETCH s.exercises e " +
+           "LEFT JOIN FETCH e.exercise " +
            "WHERE s.id = :id AND s.user.id = :userId")
     Optional<WorkoutSession> findByIdAndUserIdWithDetails(Long id, Long userId);
 
@@ -21,4 +22,3 @@ public interface WorkoutSessionRepository extends JpaRepository<WorkoutSession, 
     @Query("SELECT s FROM WorkoutSession s WHERE s.user.id = :userId AND s.template.id = :templateId " +
            "AND s.completedAt IS NOT NULL ORDER BY s.startedAt DESC")
     List<WorkoutSession> findCompletedByUserAndTemplate(Long userId, Long templateId);
-}

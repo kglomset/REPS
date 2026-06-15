@@ -25,10 +25,15 @@ export const workoutsApi = {
   logSet: (
     sessionId: number,
     exerciseId: number,
-    data: { weightKg?: number; reps: number; rpe?: number; restSeconds?: number }
+    data: { weightKg?: number; reps: number; setNumber?: number; rpe?: number; restSeconds?: number }
   ) =>
     client
       .post<ExerciseSetResponse>(ENDPOINTS.workouts.logSet(sessionId, exerciseId), data)
+      .then((r) => r.data),
+
+  updateTemplate: (templateId: number, data: { dayIndex?: number }) =>
+    client
+      .patch(`/workouts/templates/${templateId}`, data)
       .then((r) => r.data),
 
   updateTemplateExercise: (
@@ -36,11 +41,4 @@ export const workoutsApi = {
     data: {
       sets?: number;
       restSeconds?: number;
-      trainingMethod?: string;
-      supersetGroupId?: string;
-    }
-  ) =>
-    client
-      .patch(`/workouts/templates/exercises/${templateExerciseId}`, data)
-      .then((r) => r.data),
-};
+      tr

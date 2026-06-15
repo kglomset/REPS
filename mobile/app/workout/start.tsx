@@ -16,10 +16,12 @@ import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/constan
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface SetRow {
-  weight: string;
+  weight: string;       // actual entered/locked value; empty = not yet filled
   reps: string;
   completed: boolean;
   loggedId?: number;
+  prevWeight: string;   // previous-session value shown as grayed placeholder
+  prevReps: string;
 }
 
 interface ExState {
@@ -109,15 +111,18 @@ export default function ActiveWorkoutScreen() {
       const rows: SetRow[] = Array.from({ length: count }, (_, i) => {
         const prev = ex.previousSets[i];
         return {
-          weight: prev?.weightKg?.toString() ?? '',
-          reps:   prev?.reps?.toString()    ?? '',
-          completed: false,
+          weight:     '',   // empty until user types or checkmark pressed
+          reps:       '',
+          completed:  false,
+          prevWeight: prev?.weightKg?.toString() ?? '',
+          prevReps:   prev?.reps?.toString()    ?? '',
         };
       });
+      // Overlay already-logged sets (e.g. resumed session)
       ex.sets.forEach((s) => {
         const row = rows[s.setNumber - 1];
         if (row) {
-          row.weight    = s.weightKg?.toString() ?? row.weight;
+          row.weight    = s.weightKg?.toString() ?? '';
           row.reps      = s.reps.toString();
           row.completed = true;
           row.loggedId  = s.id;
@@ -216,6 +221,7 @@ export default function ActiveWorkoutScreen() {
       const result = await workoutsApi.logSet(activeSession!.id, ex.id, {
         weightKg:    weight ? parseFloat(weight) : undefined,
         reps:        parsedReps,
+        setNumber:   rowIdx + 1,   // 1-based; backend upserts if it already exists
         restSeconds: st.restSeconds,
       });
       // Update with real ID from server
@@ -798,7 +804,11 @@ function StraightSetsTable({ ex, rows, onRowsChange, onSetComplete }: {
 
   const addRow = () => {
     const last = rows[rows.length - 1];
-    onRowsChange([...rows, { weight: last?.weight ?? '', reps: last?.reps ?? '', completed: false }]);
+    onRowsChange([...rows, {
+      weight: '', reps: '', completed: false,
+      prevWeight: last?.weight || last?.prevWeight || '',
+      prevReps:   last?.reps   || last?.prevReps   || '',
+    }]);
   };
 
   const updateRow = (idx: number, patch: Partial<SetRow>) => {
@@ -830,7 +840,7 @@ function StraightSetsTable({ ex, rows, onRowsChange, onSetComplete }: {
             <TextInput
               value={row.weight}
               onChangeText={(v) => updateRow(i, { weight: v })}
-              placeholder="—"
+              placeholder={row.prevWeight || '—'}
               placeholderTextColor={Colors.textMuted}
               keyboardType="decimal-pad"
               editable={!row.completed}
@@ -841,16 +851,27 @@ function StraightSetsTable({ ex, rows, onRowsChange, onSetComplete }: {
             <TextInput
               value={row.reps}
               onChangeText={(v) => updateRow(i, { reps: v })}
-              placeholder="—"
+              placeholder={row.prevReps || '—'}
               placeholderTextColor={Colors.textMuted}
               keyboardType="number-pad"
               editable={!row.completed}
               style={[inputStyle, { flex: COL.reps, minWidth: 44,
                 color: row.completed ? Colors.success : Colors.textPrimary }]}
             />
-            {/* Checkmark */}
+            {/* Checkmark — fills in placeholders if user typed nothing */}
             <TouchableOpacity
-              onPress={() => onSetComplete(i, row.weight, row.reps)}
+              onPress={() => {
+                if (!row.completed) {
+                  const w = row.weight.trim() || row.prevWeight;
+                  const r = row.reps.trim()   || row.prevReps;
+                  if (w !== row.weight || r !== row.reps) {
+                    updateRow(i, { weight: w, reps: r });
+                  }
+                  onSetComplete(i, w, r);
+                } else {
+                  onSetComplete(i, row.weight, row.reps);
+                }
+              }}
               style={{ flex: COL.check, alignItems: 'center' }}>
               <Ionicons
                 name={row.completed ? 'checkmark-circle' : 'checkmark-circle-outline'}
@@ -887,9 +908,9 @@ function MyorepsTable({ ex, rows, onRowsChange, onSetComplete }: {
   const addSet = () => {
     const activation = rows[0];
     onRowsChange([...rows, {
-      weight: activation?.weight ?? '',
-      reps: '',
-      completed: false,
+      weight: '', reps: '', completed: false,
+      prevWeight: activation?.weight || activation?.prevWeight || '',
+      prevReps: '',
     }]);
   };
 
@@ -921,17 +942,18 @@ function MyorepsTable({ ex, rows, onRowsChange, onSetComplete }: {
                 {prevLabel}
               </Text>
             </View>
-            {/* Weight — editable on first set; propagates to subsequent sets */}
+            {/* Weight — editable on first set; propagates weight to subsequent sets */}
             <TextInput
               value={row.weight}
               onChangeText={(v) => {
                 if (isFirst) {
+                  // propagate actual weight to all rows
                   onRowsChange(rows.map((r) => ({ ...r, weight: v })));
                 } else {
                   onRowsChange(rows.map((r, j) => j === i ? { ...r, weight: v } : r));
                 }
               }}
-              placeholder="—"
+              placeholder={row.prevWeight || '—'}
               placeholderTextColor={Colors.textMuted}
               keyboardType="decimal-pad"
               editable={isFirst && !row.completed}
@@ -943,16 +965,32 @@ function MyorepsTable({ ex, rows, onRowsChange, onSetComplete }: {
             <TextInput
               value={row.reps}
               onChangeText={(v) => onRowsChange(rows.map((r, j) => j === i ? { ...r, reps: v } : r))}
-              placeholder="—"
+              placeholder={row.prevReps || '—'}
               placeholderTextColor={Colors.textMuted}
               keyboardType="number-pad"
               editable={!row.completed}
               style={[inputStyle, { flex: COL.reps, minWidth: 44,
                 color: row.completed ? Colors.success : Colors.textPrimary }]}
             />
-            {/* Checkmark */}
+            {/* Checkmark — fills placeholder on first tap */}
             <TouchableOpacity
-              onPress={() => onSetComplete(i, row.weight, row.reps)}
+              onPress={() => {
+                if (!row.completed) {
+                  const w = row.weight.trim() || row.prevWeight;
+                  const r = row.reps.trim()   || row.prevReps;
+                  if (isFirst && w !== row.weight) {
+                    // propagate resolved weight to all rows
+                    onRowsChange(rows.map((ro, j) =>
+                      j === i ? { ...ro, weight: w, reps: r } : { ...ro, weight: w }
+                    ));
+                  } else if (w !== row.weight || r !== row.reps) {
+                    onRowsChange(rows.map((ro, j) => j === i ? { ...ro, weight: w, reps: r } : ro));
+                  }
+                  onSetComplete(i, w, r);
+                } else {
+                  onSetComplete(i, row.weight, row.reps);
+                }
+              }}
               style={{ flex: COL.check, alignItems: 'center' }}>
               <Ionicons
                 name={row.completed ? 'checkmark-circle' : 'checkmark-circle-outline'}
@@ -1291,47 +1329,4 @@ function WorkoutSummaryOverlay({ summary, onDismiss }: {
           </View>
 
           {/* Exercises */}
-          {summary.exerciseNames.length > 0 && (
-            <View style={{ backgroundColor: Colors.surfaceMuted, borderRadius: Radius.md,
-              padding: Spacing.md, marginBottom: Spacing.lg }}>
-              {summary.exerciseNames.slice(0, 4).map((name) => (
-                <View key={name} style={{ flexDirection: 'row', alignItems: 'center',
-                  gap: 8, marginBottom: 4 }}>
-                  <Ionicons name="checkmark-circle" size={14} color={Colors.success} />
-                  <Text style={{ fontSize: FontSize.sm, color: Colors.textPrimary }}>{name}</Text>
-                </View>
-              ))}
-              {summary.exerciseNames.length > 4 && (
-                <Text style={{ fontSize: FontSize.xs, color: Colors.textMuted, marginTop: 2 }}>
-                  +{summary.exerciseNames.length - 4} more
-                </Text>
-              )}
-            </View>
-          )}
-
-          <TouchableOpacity onPress={onDismiss}
-            style={{ backgroundColor: Colors.success, borderRadius: Radius.md,
-              paddingVertical: 14, alignItems: 'center' }}>
-            <Text style={{ color: Colors.textInverse, fontWeight: FontWeight.bold,
-              fontSize: FontSize.md }}>Back to Home</Text>
-          </TouchableOpacity>
-        </View>
-      </TouchableOpacity>
-    </Modal>
-  );
-}
-
-function StatPill({ label, value, icon }: { label: string; value: string; icon: string }) {
-  return (
-    <View style={{ alignItems: 'center' }}>
-      <View style={{ width: 48, height: 48, borderRadius: 24,
-        backgroundColor: Colors.primaryTint, alignItems: 'center',
-        justifyContent: 'center', marginBottom: 4 }}>
-        <Ionicons name={icon as any} size={20} color={Colors.primary} />
-      </View>
-      <Text style={{ fontSize: FontSize.lg, fontWeight: FontWeight.bold,
-        color: Colors.textPrimary }}>{value}</Text>
-      <Text style={{ fontSize: FontSize.xs, color: Colors.textMuted }}>{label}</Text>
-    </View>
-  );
-}
+          {summary.exerciseN

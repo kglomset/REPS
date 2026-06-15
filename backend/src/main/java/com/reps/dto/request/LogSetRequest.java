@@ -11,4 +11,4 @@ public class LogSetRequest {
     @NotNull @Min(0) private Integer reps;
     @Min(1) @Max(10) private Integer rpe;
     private Integer restSeconds;
-}
+   

@@ -4,6 +4,8 @@ import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 
+import org.hibernate.annotations.BatchSize;
+
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -42,6 +44,5 @@ public class WorkoutSession {
 
     @OneToMany(mappedBy = "session", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("exerciseOrder ASC")
-    @Builder.Default
-    private List<SessionExercise> exercises = new ArrayList<>();
-}
+    @BatchSize(size = 20)
+    @Builder.Defa

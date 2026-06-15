@@ -62,17 +62,33 @@ public class WorkoutService {
                 .findFirst()
                 .orElseThrow(() -> new NoSuchElementException("Exercise not in session"));
 
-        int nextSet = sessionExercise.getSets().size() + 1;
-        ExerciseSet set = ExerciseSet.builder()
-                .sessionExercise(sessionExercise)
-                .setNumber(nextSet)
-                .weightKg(req.getWeightKg())
-                .reps(req.getReps())
-                .rpe(req.getRpe())
-                .restSeconds(req.getRestSeconds())
-                .build();
+        // Use caller-supplied set number (upsert) or auto-increment
+        int targetSet = req.getSetNumber() != null
+                ? req.getSetNumber()
+                : sessionExercise.getSets().size() + 1;
 
-        sessionExercise.getSets().add(set);
+        // Upsert: update existing set if one with this number already exists
+        ExerciseSet set = sessionExercise.getSets().stream()
+                .filter(s -> s.getSetNumber() == targetSet)
+                .findFirst()
+                .orElse(null);
+
+        if (set != null) {
+            set.setWeightKg(req.getWeightKg());
+            set.setReps(req.getReps());
+            set.setRpe(req.getRpe());
+            set.setRestSeconds(req.getRestSeconds());
+        } else {
+            set = ExerciseSet.builder()
+                    .sessionExercise(sessionExercise)
+                    .setNumber(targetSet)
+                    .weightKg(req.getWeightKg())
+                    .reps(req.getReps())
+                    .rpe(req.getRpe())
+                    .restSeconds(req.getRestSeconds())
+                    .build();
+            sessionExercise.getSets().add(set);
+        }
         sessionRepo.save(session);
 
         return ExerciseSetResponse.builder()
@@ -143,6 +159,19 @@ public class WorkoutService {
                 .toList();
     }
 
+    /** Update a workout template's scheduled day (0=Mon … 6=Sun). */
+    @Transactional
+    public void updateTemplate(Long userId, Long templateId, Integer dayIndex) {
+        programRepo.findAll().stream()
+                .filter(p -> p.getUser().getId().equals(userId))
+                .flatMap(p -> p.getWorkoutTemplates().stream())
+                .filter(t -> t.getId().equals(templateId))
+                .findFirst()
+                .ifPresent(t -> {
+                    if (dayIndex != null) t.setDayIndex(dayIndex);
+                });
+    }
+
     // ── Mappers ──────────────────────────────────────────────────────────────
 
     private WorkoutSessionResponse toResponse(WorkoutSession s) {
@@ -190,31 +219,4 @@ public class WorkoutService {
                 .build();
     }
 
-    private List<ExerciseSetResponse> getPreviousSets(WorkoutSession current, SessionExercise se) {
-        if (current.getTemplate() == null) return List.of();
-        List<WorkoutSession> previous = sessionRepo.findCompletedByUserAndTemplate(
-                current.getUser().getId(), current.getTemplate().getId());
-
-        return previous.stream()
-                .filter(s -> !s.getId().equals(current.getId()))
-                .findFirst()
-                .map(prev -> prev.getExercises().stream()
-                        .filter(prevEx -> prevEx.getExercise().getId().equals(se.getExercise().getId()))
-                        .findFirst()
-                        .map(prevEx -> prevEx.getSets().stream().map(this::toSetResponse).toList())
-                        .orElse(List.of()))
-                .orElse(List.of());
-    }
-
-    private ExerciseSetResponse toSetResponse(ExerciseSet set) {
-        return ExerciseSetResponse.builder()
-                .id(set.getId())
-                .setNumber(set.getSetNumber())
-                .weightKg(set.getWeightKg())
-                .reps(set.getReps())
-                .rpe(set.getRpe())
-                .restSeconds(set.getRestSeconds())
-                .completedAt(set.getCompletedAt())
-                .build();
-    }
-}
+    private List<ExerciseSetResponse> getPreviou

@@ -64,19 +64,20 @@ public class WorkoutController {
         return workoutService.logSet(principal.getId(), sessionId, exerciseId, req);
     }
 
+    /** Update a workout template (e.g. change its scheduled day). */
+    @PatchMapping("/templates/{templateId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void updateTemplate(@AuthenticationPrincipal UserPrincipal principal,
+                               @PathVariable Long templateId,
+                               @RequestBody Map<String, Object> body) {
+        Integer dayIndex = body.get("dayIndex") != null
+                ? ((Number) body.get("dayIndex")).intValue() : null;
+        workoutService.updateTemplate(principal.getId(), templateId, dayIndex);
+    }
+
     /** Persist structural workout changes (sets, rest, superset, method) back to the template. */
     @PatchMapping("/templates/exercises/{templateExerciseId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void updateTemplateExercise(@AuthenticationPrincipal UserPrincipal principal,
                                        @PathVariable Long templateExerciseId,
-                                       @RequestBody Map<String, Object> body) {
-        workoutService.updateTemplateExercise(
-                principal.getId(),
-                templateExerciseId,
-                body.get("sets") != null ? ((Number) body.get("sets")).intValue() : null,
-                body.get("restSeconds") != null ? ((Number) body.get("restSeconds")).intValue() : null,
-                body.get("trainingMethod") != null ? (String) body.get("trainingMethod") : null,
-                body.get("supersetGroupId") != null ? (String) body.get("supersetGroupId") : null
-        );
-    }
-}
+                     
