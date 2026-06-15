@@ -1329,4 +1329,47 @@ function WorkoutSummaryOverlay({ summary, onDismiss }: {
           </View>
 
           {/* Exercises */}
-          {summary.exerciseN
+          {summary.exerciseNames.length > 0 && (
+            <View style={{ backgroundColor: Colors.surfaceMuted, borderRadius: Radius.md,
+              padding: Spacing.md, marginBottom: Spacing.lg }}>
+              {summary.exerciseNames.slice(0, 4).map((name) => (
+                <View key={name} style={{ flexDirection: 'row', alignItems: 'center',
+                  gap: 8, marginBottom: 4 }}>
+                  <Ionicons name="checkmark-circle" size={14} color={Colors.success} />
+                  <Text style={{ fontSize: FontSize.sm, color: Colors.textPrimary }}>{name}</Text>
+                </View>
+              ))}
+              {summary.exerciseNames.length > 4 && (
+                <Text style={{ fontSize: FontSize.xs, color: Colors.textMuted, marginTop: 2 }}>
+                  +{summary.exerciseNames.length - 4} more
+                </Text>
+              )}
+            </View>
+          )}
+
+          <TouchableOpacity onPress={onDismiss}
+            style={{ backgroundColor: Colors.success, borderRadius: Radius.md,
+              paddingVertical: 14, alignItems: 'center' }}>
+            <Text style={{ color: Colors.textInverse, fontWeight: FontWeight.bold,
+              fontSize: FontSize.md }}>Back to Home</Text>
+          </TouchableOpacity>
+        </View>
+      </TouchableOpacity>
+    </Modal>
+  );
+}
+
+function StatPill({ label, value, icon }: { label: string; value: string; icon: string }) {
+  return (
+    <View style={{ alignItems: 'center' }}>
+      <View style={{ width: 48, height: 48, borderRadius: 24,
+        backgroundColor: Colors.primaryTint, alignItems: 'center',
+        justifyContent: 'center', marginBottom: 4 }}>
+        <Ionicons name={icon as any} size={20} color={Colors.primary} />
+      </View>
+      <Text style={{ fontSize: FontSize.lg, fontWeight: FontWeight.bold,
+        color: Colors.textPrimary }}>{value}</Text>
+      <Text style={{ fontSize: FontSize.xs, color: Colors.textMuted }}>{label}</Text>
+    </View>
+  );
+}

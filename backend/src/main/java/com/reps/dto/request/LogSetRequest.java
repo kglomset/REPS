@@ -11,4 +11,6 @@ public class LogSetRequest {
     @NotNull @Min(0) private Integer reps;
     @Min(1) @Max(10) private Integer rpe;
     private Integer restSeconds;
-   
+    /** 1-based set number. When provided the backend upserts; otherwise auto-increments. */
+    private Integer setNumber;
+}

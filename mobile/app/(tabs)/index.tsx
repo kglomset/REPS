@@ -614,4 +614,109 @@ function TodayCard({ template }: { template: WorkoutTemplateResponse }) {
             <Text style={{ fontSize: FontSize.xs, color: Colors.primaryLight,
               fontWeight: FontWeight.medium, textTransform: 'uppercase',
               letterSpacing: 0.5 }}>Today · Tap to start</Text>
-       
+            <Text style={{ fontSize: FontSize.xl, fontWeight: FontWeight.bold,
+              color: Colors.textInverse, marginTop: 2 }}>{template.name}</Text>
+          </View>
+          <View style={{ width: 44, height: 44, borderRadius: 22,
+            backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center',
+            justifyContent: 'center' }}>
+            <Ionicons name="play" size={22} color={Colors.textInverse} />
+          </View>
+        </View>
+
+        {/* Muscle chips */}
+        {muscles.length > 0 && (
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: Spacing.sm }}>
+            {muscles.map((m) => (
+              <View key={m} style={{ backgroundColor: 'rgba(255,255,255,0.15)',
+                borderRadius: Radius.full, paddingHorizontal: 10, paddingVertical: 4 }}>
+                <Text style={{ fontSize: FontSize.xs, color: Colors.textInverse }}>{m}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+// ─── Rest day card ────────────────────────────────────────────────────────────
+
+function RestDayCard() {
+  return (
+    <View style={{ backgroundColor: Colors.surface, borderRadius: Radius.lg,
+      padding: Spacing.md, marginBottom: Spacing.md, ...Shadow.card,
+      flexDirection: 'row', alignItems: 'center', gap: Spacing.md }}>
+      <View style={{ width: 44, height: 44, borderRadius: 22,
+        backgroundColor: Colors.successTint, alignItems: 'center', justifyContent: 'center' }}>
+        <Ionicons name="bed-outline" size={22} color={Colors.success} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={{ fontSize: FontSize.md, fontWeight: FontWeight.semibold,
+          color: Colors.textPrimary }}>Rest Day</Text>
+        <Text style={{ fontSize: FontSize.sm, color: Colors.textSecondary }}>
+          Recovery is part of the program. See you tomorrow.
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+// ─── Setup program card ───────────────────────────────────────────────────────
+
+function SetupProgramCard() {
+  return (
+    <View style={{ backgroundColor: Colors.surface, borderRadius: Radius.lg,
+      padding: Spacing.md, marginBottom: Spacing.md, ...Shadow.card }}>
+      <Text style={{ fontSize: FontSize.md, fontWeight: FontWeight.semibold,
+        color: Colors.textPrimary, marginBottom: 4 }}>No active program</Text>
+      <Text style={{ fontSize: FontSize.sm, color: Colors.textSecondary,
+        marginBottom: Spacing.md }}>
+        Create a program to start tracking your workouts.
+      </Text>
+      <TouchableOpacity
+        onPress={() => router.push('/program/setup')}
+        style={{ backgroundColor: Colors.primary, borderRadius: Radius.md,
+          paddingVertical: 12, alignItems: 'center' }}>
+        <Text style={{ color: Colors.textInverse, fontWeight: FontWeight.semibold }}>
+          Create Program
+        </Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+// ─── Program overview card ────────────────────────────────────────────────────
+
+function ProgramOverviewCard({ templates }: { templates: WorkoutTemplateResponse[] }) {
+  const DAY_ABBR = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  return (
+    <View style={{ backgroundColor: Colors.surface, borderRadius: Radius.lg,
+      padding: Spacing.md, marginTop: Spacing.sm, ...Shadow.card }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6,
+        marginBottom: Spacing.sm }}>
+        <Ionicons name="calendar-outline" size={16} color={Colors.textSecondary} />
+        <Text style={{ fontSize: FontSize.sm, fontWeight: FontWeight.medium,
+          color: Colors.textSecondary }}>Weekly Schedule</Text>
+      </View>
+      {templates.sort((a, b) => a.dayIndex - b.dayIndex).map((t) => (
+        <View key={t.id} style={{ flexDirection: 'row', alignItems: 'center',
+          paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: Colors.border }}>
+          <View style={{ width: 36, height: 36, borderRadius: 18,
+            backgroundColor: Colors.primaryTint, alignItems: 'center', justifyContent: 'center',
+            marginRight: Spacing.md }}>
+            <Text style={{ fontSize: FontSize.xs, fontWeight: FontWeight.bold,
+              color: Colors.primary }}>{DAY_ABBR[t.dayIndex]}</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: FontSize.sm, fontWeight: FontWeight.medium,
+              color: Colors.textPrimary }}>{t.name}</Text>
+            <Text style={{ fontSize: FontSize.xs, color: Colors.textMuted }}>
+              {t.exercises.length} exercise{t.exercises.length !== 1 ? 's' : ''}
+            </Text>
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+}

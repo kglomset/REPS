@@ -43,4 +43,6 @@ public class SessionExercise {
     @OneToMany(mappedBy = "sessionExercise", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("setNumber ASC")
     @BatchSize(size = 30)
-    @Bui
+    @Builder.Default
+    private List<ExerciseSet> sets = new ArrayList<>();
+}

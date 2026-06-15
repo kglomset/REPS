@@ -219,4 +219,31 @@ public class WorkoutService {
                 .build();
     }
 
-    private List<ExerciseSetResponse> getPreviou
+    private List<ExerciseSetResponse> getPreviousSets(WorkoutSession current, SessionExercise se) {
+        if (current.getTemplate() == null) return List.of();
+        List<WorkoutSession> previous = sessionRepo.findCompletedByUserAndTemplate(
+                current.getUser().getId(), current.getTemplate().getId());
+
+        return previous.stream()
+                .filter(s -> !s.getId().equals(current.getId()))
+                .findFirst()
+                .map(prev -> prev.getExercises().stream()
+                        .filter(prevEx -> prevEx.getExercise().getId().equals(se.getExercise().getId()))
+                        .findFirst()
+                        .map(prevEx -> prevEx.getSets().stream().map(this::toSetResponse).toList())
+                        .orElse(List.of()))
+                .orElse(List.of());
+    }
+
+    private ExerciseSetResponse toSetResponse(ExerciseSet set) {
+        return ExerciseSetResponse.builder()
+                .id(set.getId())
+                .setNumber(set.getSetNumber())
+                .weightKg(set.getWeightKg())
+                .reps(set.getReps())
+                .rpe(set.getRpe())
+                .restSeconds(set.getRestSeconds())
+                .completedAt(set.getCompletedAt())
+                .build();
+    }
+}

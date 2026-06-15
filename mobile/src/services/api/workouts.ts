@@ -41,4 +41,11 @@ export const workoutsApi = {
     data: {
       sets?: number;
       restSeconds?: number;
-      tr
+      trainingMethod?: string;
+      supersetGroupId?: string;
+    }
+  ) =>
+    client
+      .patch(`/workouts/templates/exercises/${templateExerciseId}`, data)
+      .then((r) => r.data),
+};

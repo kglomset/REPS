@@ -80,4 +80,14 @@ public class WorkoutController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void updateTemplateExercise(@AuthenticationPrincipal UserPrincipal principal,
                                        @PathVariable Long templateExerciseId,
-                     
+                                       @RequestBody Map<String, Object> body) {
+        workoutService.updateTemplateExercise(
+                principal.getId(),
+                templateExerciseId,
+                body.get("sets") != null ? ((Number) body.get("sets")).intValue() : null,
+                body.get("restSeconds") != null ? ((Number) body.get("restSeconds")).intValue() : null,
+                body.get("trainingMethod") != null ? (String) body.get("trainingMethod") : null,
+                body.get("supersetGroupId") != null ? (String) body.get("supersetGroupId") : null
+        );
+    }
+}

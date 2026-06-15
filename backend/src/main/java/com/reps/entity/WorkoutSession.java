@@ -45,4 +45,6 @@ public class WorkoutSession {
     @OneToMany(mappedBy = "session", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("exerciseOrder ASC")
     @BatchSize(size = 20)
-    @Builder.Defa
+    @Builder.Default
+    private List<SessionExercise> exercises = new ArrayList<>();
+}
