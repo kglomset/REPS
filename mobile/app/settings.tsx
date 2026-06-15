@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
-  Alert,
+  Alert, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -61,16 +61,18 @@ export default function SettingsScreen() {
   });
 
   const handleLogout = () => {
-    Alert.alert('Sign Out', 'Are you sure?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Sign Out', style: 'destructive',
-        onPress: async () => {
-          try { await logout(); } catch (_) {}
-          router.replace('/(auth)/login');
-        },
-      },
-    ]);
+    const doLogout = async () => {
+      try { await logout(); } catch (_) {}
+      router.replace('/(auth)/login');
+    };
+    if (Platform.OS === 'web') {
+      if (window.confirm('Sign out of REPS?')) doLogout();
+    } else {
+      Alert.alert('Sign Out', 'Are you sure?', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Sign Out', style: 'destructive', onPress: doLogout },
+      ]);
+    }
   };
 
   return (
