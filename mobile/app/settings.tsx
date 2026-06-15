@@ -300,4 +300,8 @@ function SettingsRow({ icon, label, onPress, destructive }: {
         style={{ marginRight: Spacing.md }}
       />
       <Text style={{ flex: 1, fontSize: FontSize.md,
-        color: destructive ? Colors.error : Colors.textPrimary }}>{
+        color: destructive ? Colors.error : Colors.textPrimary }}>{label}</Text>
+      <Ionicons name="chevron-forward" size={16} color={Colors.textMuted} />
+    </TouchableOpacity>
+  );
+}
