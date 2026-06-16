@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
+import DraggableFlatList, { RenderItemParams } from 'react-native-draggable-flatlist';
 import { programsApi } from '@/services/api/programs';
 import { exercisesApi } from '@/services/api/exercises';
 import { FitnessLevel, TrainingGoal, CardioType, ExerciseResponse } from '@/types';
@@ -15,12 +16,13 @@ import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/constan
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type Mode = 'suggested' | 'diy';
-type SuggestedStep = 'level' | 'goal' | 'days' | 'cardio' | 'confirm';
+type SuggestedStep = 'level' | 'goal' | 'method' | 'days' | 'cardio' | 'confirm';
 
 interface ProgramDraft {
   name: string;
   fitnessLevel: FitnessLevel;
   goal: TrainingGoal;
+  trainingMethod: TrainingMethod;
   strengthDaysPerWeek: number;
   cardioDaysPerWeek: number;
   cardioType?: CardioType;
@@ -92,7 +94,7 @@ const SPLIT_NAMES: Record<number, string> = {
   6: 'Push A / Pull A / Legs A / Push B / Pull B / Legs B',
 };
 
-const SUGGESTED_STEPS: SuggestedStep[] = ['level', 'goal', 'days', 'cardio', 'confirm'];
+const SUGGESTED_STEPS: SuggestedStep[] = ['level', 'goal', 'method', 'days', 'cardio', 'confirm'];
 
 // ─── Root screen: mode picker ─────────────────────────────────────────────────
 
@@ -140,13 +142,13 @@ function ModePicker({ onSelect }: { onSelect: (m: Mode) => void }) {
           </Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6,
             marginTop: Spacing.md }}>
-            {['Level', 'Goal', 'Days', 'Done'].map((s, i) => (
+            {['Level', 'Goal', 'Method', 'Days', 'Done'].map((s, i) => (
               <React.Fragment key={s}>
                 <View style={{ backgroundColor: 'rgba(255,255,255,0.15)',
                   borderRadius: Radius.full, paddingHorizontal: 8, paddingVertical: 3 }}>
                   <Text style={{ fontSize: 10, color: Colors.textInverse }}>{s}</Text>
                 </View>
-                {i < 3 && <Ionicons name="arrow-forward" size={10} color={Colors.primaryLight} />}
+                {i < 4 && <Ionicons name="arrow-forward" size={10} color={Colors.primaryLight} />}
               </React.Fragment>
             ))}
           </View>
@@ -181,6 +183,7 @@ function SuggestedWizard() {
     name: 'My Training Program',
     fitnessLevel: 'INTERMEDIATE',
     goal: 'HYPERTROPHY',
+    trainingMethod: 'STRAIGHT_SETS',
     strengthDaysPerWeek: 4,
     cardioDaysPerWeek: 0,
   });
@@ -251,6 +254,40 @@ function SuggestedWizard() {
               title="Strength"
               subtitle="3–6 reps · 4–5 sets · 3–5 min rest"
               icon="barbell-outline" />
+          </StepContainer>
+        )}
+
+        {step === 'method' && (
+          <StepContainer title="Training method"
+            subtitle="Controls how sets are structured for each exercise.">
+            <OptionCard
+              selected={draft.trainingMethod === 'STRAIGHT_SETS'}
+              onPress={() => setDraft((d) => ({ ...d, trainingMethod: 'STRAIGHT_SETS' }))}
+              title="Straight Sets"
+              subtitle="Classic approach: complete all sets of one exercise before moving to the next. Best for beginners and strength focus."
+              icon="layers-outline"
+            />
+            <OptionCard
+              selected={draft.trainingMethod === 'MYOREPS'}
+              onPress={() => setDraft((d) => ({ ...d, trainingMethod: 'MYOREPS' }))}
+              title="Myo-Reps"
+              subtitle="Activation set + short-rest mini-sets. Maximises effective reps per unit of time. Great for hypertrophy with less total volume."
+              icon="flash-outline"
+            />
+            {draft.trainingMethod === 'MYOREPS' && (
+              <View style={{ backgroundColor: Colors.primaryTint, borderRadius: Radius.lg,
+                padding: Spacing.md, marginTop: Spacing.sm }}>
+                <Text style={{ fontSize: FontSize.xs, fontWeight: FontWeight.semibold,
+                  color: Colors.primary, marginBottom: 4 }}>How myo-reps work</Text>
+                <Text style={{ fontSize: FontSize.xs, color: Colors.primaryDark, lineHeight: 18 }}>
+                  1. Activation set — push to near failure (e.g. 12–15 reps){'\n'}
+                  2. Rest 5 breaths{'\n'}
+                  3. Mini-sets of ~3–5 reps until you can't match the rep count{'\n'}
+                  {'\n'}
+                  Primary muscles get 3 sets; supporting muscles get 1–2.
+                </Text>
+              </View>
+            )}
           </StepContainer>
         )}
 
@@ -343,6 +380,7 @@ function SuggestedWizard() {
             />
             <SummaryRow label="Level" value={draft.fitnessLevel.charAt(0) + draft.fitnessLevel.slice(1).toLowerCase()} />
             <SummaryRow label="Goal" value={draft.goal === 'HYPERTROPHY' ? 'Muscle Growth' : 'Strength'} />
+            <SummaryRow label="Method" value={draft.trainingMethod === 'MYOREPS' ? 'Myo-Reps' : 'Straight Sets'} />
             <SummaryRow label="Strength" value={`${draft.strengthDaysPerWeek}× / week`} />
             {draft.cardioDaysPerWeek > 0 && (
               <SummaryRow label="Cardio" value={`${draft.cardioDaysPerWeek}× ${draft.cardioType ?? ''}`} />
@@ -395,10 +433,11 @@ function defaultSetsReps(goal: TrainingGoal): { sets: number; reps: number } {
 
 function DiyBuilder() {
   const queryClient = useQueryClient();
-  const [programName, setProgramName]   = useState('My Program');
-  const [fitnessLevel, setFitnessLevel] = useState<FitnessLevel>('INTERMEDIATE');
-  const [goal, setGoal]                 = useState<TrainingGoal>('HYPERTROPHY');
-  const [days, setDays]                 = useState<DiyDay[]>(
+  const [programName, setProgramName]           = useState('My Program');
+  const [fitnessLevel, setFitnessLevel]         = useState<FitnessLevel>('INTERMEDIATE');
+  const [goal, setGoal]                         = useState<TrainingGoal>('HYPERTROPHY');
+  const [trainingMethod, setTrainingMethod]     = useState<TrainingMethod>('STRAIGHT_SETS');
+  const [days, setDays]                         = useState<DiyDay[]>(
     DEFAULT_DAY_INDICES.map((idx) => ({
       name: `Day ${idx + 1}`,
       dayIndex: idx,
@@ -512,23 +551,37 @@ function DiyBuilder() {
           </Text>
         </View>
 
-        {/* Selected exercises with sets/reps editing */}
+        {/* Selected exercises with drag-to-reorder + sets/reps editing */}
         {editingDay.exercises.length > 0 && (
-          <View style={{ borderBottomWidth: 1, borderBottomColor: Colors.border }}>
+          <View style={{ borderBottomWidth: 1, borderBottomColor: Colors.border, maxHeight: 320 }}>
             <Text style={{ fontSize: FontSize.xs, color: Colors.textMuted,
               fontWeight: FontWeight.medium, paddingHorizontal: Spacing.lg,
               paddingTop: Spacing.md, paddingBottom: 6 }}>
-              SELECTED EXERCISES
+              SELECTED EXERCISES · hold &amp; drag to reorder
             </Text>
-            <ScrollView style={{ maxHeight: 280 }}>
-              {editingDay.exercises.map((de) => (
-                <View key={de.exercise.id} style={{
+            <DraggableFlatList
+              data={editingDay.exercises}
+              keyExtractor={(de) => String(de.exercise.id)}
+              onDragEnd={({ data: newOrder }) => {
+                setDays((prev) =>
+                  prev.map((d) =>
+                    d.dayIndex === editingDay.dayIndex ? { ...d, exercises: newOrder } : d
+                  )
+                );
+              }}
+              renderItem={({ item: de, drag, isActive }: RenderItemParams<DiyExercise>) => (
+                <View style={{
                   paddingHorizontal: Spacing.lg, paddingVertical: 10,
                   borderTopWidth: 1, borderTopColor: Colors.border,
+                  backgroundColor: isActive ? Colors.primaryTint : Colors.surface,
                 }}>
-                  {/* Exercise name + remove */}
+                  {/* Exercise name + drag handle + remove */}
                   <View style={{ flexDirection: 'row', alignItems: 'center',
                     justifyContent: 'space-between', marginBottom: 6 }}>
+                    <TouchableOpacity onLongPress={drag} delayLongPress={150}
+                      style={{ marginRight: 8, paddingVertical: 2 }}>
+                      <Ionicons name="reorder-three-outline" size={20} color={Colors.textMuted} />
+                    </TouchableOpacity>
                     <View style={{ flex: 1, marginRight: Spacing.sm }}>
                       <Text style={{ fontSize: FontSize.sm, fontWeight: FontWeight.semibold,
                         color: Colors.textPrimary }}>{de.exercise.name}</Text>
@@ -586,7 +639,6 @@ function DiyBuilder() {
                           color: Colors.textPrimary, borderWidth: 1, borderColor: Colors.border,
                         }}
                       />
-                      {/* Reference range hint */}
                       <Text style={{ fontSize: 10, color: Colors.textMuted }}>
                         rec {REP_RANGE_HINT[goal]}
                       </Text>
@@ -602,8 +654,8 @@ function DiyBuilder() {
                     </View>
                   </View>
                 </View>
-              ))}
-            </ScrollView>
+              )}
+            />
           </View>
         )}
 
@@ -691,6 +743,35 @@ function DiyBuilder() {
             </TouchableOpacity>
           ))}
         </View>
+
+        {/* Training method */}
+        <Text style={{ fontSize: FontSize.sm, color: Colors.textSecondary,
+          fontWeight: FontWeight.medium, marginBottom: 8 }}>Training Method</Text>
+        <View style={{ flexDirection: 'row', gap: 8, marginBottom: Spacing.lg }}>
+          {([
+            { value: 'STRAIGHT_SETS', label: 'Straight Sets' },
+            { value: 'MYOREPS',       label: 'Myo-Reps'      },
+          ] as { value: TrainingMethod; label: string }[]).map(({ value, label }) => (
+            <TouchableOpacity key={value} onPress={() => setTrainingMethod(value)}
+              style={{ flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: Radius.md,
+                backgroundColor: trainingMethod === value ? Colors.primary : Colors.surfaceMuted,
+                borderWidth: 1, borderColor: trainingMethod === value ? Colors.primary : Colors.border }}>
+              <Text style={{ fontSize: FontSize.xs, fontWeight: FontWeight.semibold,
+                color: trainingMethod === value ? Colors.textInverse : Colors.textSecondary }}>
+                {label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+        {trainingMethod === 'MYOREPS' && (
+          <View style={{ backgroundColor: Colors.primaryTint, borderRadius: Radius.md,
+            padding: Spacing.sm, marginTop: -Spacing.sm, marginBottom: Spacing.md }}>
+            <Text style={{ fontSize: FontSize.xs, color: Colors.primary }}>
+              Activation set → 5 breaths → mini-sets until failure. Primary muscles 3 sets,
+              supporting 1–2.
+            </Text>
+          </View>
+        )}
 
         {/* Training days */}
         <Text style={{ fontSize: FontSize.sm, color: Colors.textSecondary,

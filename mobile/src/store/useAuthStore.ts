@@ -15,9 +15,11 @@ interface AuthState {
   }) => Promise<void>;
   logout: () => Promise<void>;
   hydrate: () => Promise<void>;
+  /** Merge partial profile updates (name, avatarUrl) into stored user */
+  updateUser: (patch: Partial<Pick<AuthResponse, 'name' | 'avatarUrl'>>) => Promise<void>;
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
+export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   isLoading: true,
   isAuthenticated: false,
@@ -54,5 +56,13 @@ export const useAuthStore = create<AuthState>((set) => ({
     await storage.deleteItem(TOKEN_KEY);
     await storage.deleteItem('reps_user');
     set({ user: null, isAuthenticated: false });
+  },
+
+  updateUser: async (patch) => {
+    const current = get().user;
+    if (!current) return;
+    const updated = { ...current, ...patch };
+    await storage.setItem('reps_user', JSON.stringify(updated));
+    set({ user: updated });
   },
 }));

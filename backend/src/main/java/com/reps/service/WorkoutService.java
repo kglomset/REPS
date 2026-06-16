@@ -159,9 +159,9 @@ public class WorkoutService {
                 .toList();
     }
 
-    /** Update a workout template's scheduled day (0=Mon … 6=Sun). */
+    /** Update a workout template's scheduled day and/or name. */
     @Transactional
-    public void updateTemplate(Long userId, Long templateId, Integer dayIndex) {
+    public void updateTemplate(Long userId, Long templateId, Integer dayIndex, String name) {
         programRepo.findAll().stream()
                 .filter(p -> p.getUser().getId().equals(userId))
                 .flatMap(p -> p.getWorkoutTemplates().stream())
@@ -169,7 +169,44 @@ public class WorkoutService {
                 .findFirst()
                 .ifPresent(t -> {
                     if (dayIndex != null) t.setDayIndex(dayIndex);
+                    if (name != null && !name.isBlank()) t.setName(name.trim());
                 });
+    }
+
+    /** Reorder exercises within a template. exerciseIds = new ordered list of WorkoutTemplateExercise IDs. */
+    @Transactional
+    public void reorderTemplateExercises(Long userId, Long templateId, List<Long> exerciseIds) {
+        programRepo.findAll().stream()
+                .filter(p -> p.getUser().getId().equals(userId))
+                .flatMap(p -> p.getWorkoutTemplates().stream())
+                .filter(t -> t.getId().equals(templateId))
+                .findFirst()
+                .ifPresent(t -> {
+                    for (int i = 0; i < exerciseIds.size(); i++) {
+                        final int order = i;
+                        final Long exId = exerciseIds.get(i);
+                        t.getExercises().stream()
+                                .filter(te -> te.getId().equals(exId))
+                                .findFirst()
+                                .ifPresent(te -> te.setExerciseOrder(order));
+                    }
+                });
+    }
+
+    /** Reorder exercises within a live session. exerciseIds = new ordered list of SessionExercise IDs. */
+    @Transactional
+    public void reorderSessionExercises(Long userId, Long sessionId, List<Long> exerciseIds) {
+        WorkoutSession session = sessionRepo.findByIdAndUserIdWithDetails(sessionId, userId)
+                .orElseThrow(() -> new NoSuchElementException("Session not found"));
+        for (int i = 0; i < exerciseIds.size(); i++) {
+            final int order = i;
+            final Long exId = exerciseIds.get(i);
+            session.getExercises().stream()
+                    .filter(se -> se.getId().equals(exId))
+                    .findFirst()
+                    .ifPresent(se -> se.setExerciseOrder(order));
+        }
+        sessionRepo.save(session);
     }
 
     // ── Mappers ──────────────────────────────────────────────────────────────

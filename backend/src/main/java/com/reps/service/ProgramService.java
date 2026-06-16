@@ -71,6 +71,22 @@ public class ProgramService {
     }
 
     @Transactional
+    public void deactivateProgram(Long userId, Long programId) {
+        TrainingProgram target = programRepo.findByIdAndUserIdWithDetails(programId, userId)
+                .orElseThrow(() -> new NoSuchElementException("Program not found"));
+        target.setActive(false);
+        programRepo.save(target);
+    }
+
+    @Transactional
+    public void updateProgram(Long userId, Long programId, String name) {
+        TrainingProgram target = programRepo.findByIdAndUserIdWithDetails(programId, userId)
+                .orElseThrow(() -> new NoSuchElementException("Program not found"));
+        if (name != null && !name.isBlank()) target.setName(name.trim());
+        programRepo.save(target);
+    }
+
+    @Transactional
     public ProgramResponse activateProgram(Long userId, Long programId) {
         // Deactivate all programs for this user
         programRepo.findByUserId(userId).forEach(p -> {
@@ -166,16 +182,23 @@ public class ProgramService {
                     .map(Exercise::getId)
                     .toList();
         } else if (lower.contains("push")) {
-            return exercisesByMuscles(List.of("chest", "shoulders", "triceps"),
+            // "shoulders" slug doesn't exist; use the actual delt slugs
+            return exercisesByMuscles(
+                    List.of("chest", "front-delts", "side-delts", "triceps"),
                     level == FitnessLevel.BEGINNER ? 3 : 5);
         } else if (lower.contains("pull")) {
-            return exercisesByMuscles(List.of("back", "biceps", "rear-delts"),
+            // "back" slug doesn't exist; use actual back-muscle slugs
+            return exercisesByMuscles(
+                    List.of("lats", "upper-back", "traps", "biceps", "rear-delts"),
                     level == FitnessLevel.BEGINNER ? 3 : 5);
         } else if (lower.contains("legs") || lower.contains("lower")) {
-            return exercisesByMuscles(List.of("quads", "hamstrings", "glutes", "calves"),
+            return exercisesByMuscles(
+                    List.of("quads", "hamstrings", "glutes", "calves"),
                     level == FitnessLevel.BEGINNER ? 3 : 5);
         } else if (lower.contains("upper")) {
-            return exercisesByMuscles(List.of("chest", "back", "shoulders"),
+            return exercisesByMuscles(
+                    List.of("chest", "lats", "upper-back", "traps",
+                            "front-delts", "side-delts"),
                     level == FitnessLevel.BEGINNER ? 3 : 5);
         }
         return exerciseRepo.findByCreatedByIsNull().stream().limit(4).map(Exercise::getId).toList();

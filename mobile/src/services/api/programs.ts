@@ -17,4 +17,10 @@ export const programsApi = {
 
   activate: (id: number) =>
     client.post<ProgramResponse>(`/programs/${id}/activate`, {}).then((r) => r.data),
+
+  deactivate: (id: number) =>
+    client.post(`/programs/${id}/deactivate`, {}).then((r) => r.data),
+
+  update: (id: number, data: { name?: string }) =>
+    client.patch(`/programs/${id}`, data).then((r) => r.data),
 };

@@ -54,6 +54,7 @@ public class AuthService {
                 .userId(user.getId())
                 .name(user.getName())
                 .email(user.getEmail())
+                .avatarUrl(user.getAvatarUrl())
                 .fitnessLevel(user.getFitnessLevel())
                 .build();
     }

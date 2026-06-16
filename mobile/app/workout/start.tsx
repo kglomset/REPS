@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
+import DraggableFlatList, { RenderItemParams } from 'react-native-draggable-flatlist';
 import { workoutsApi } from '@/services/api/workouts';
 import { exercisesApi } from '@/services/api/exercises';
 import { useWorkoutStore } from '@/store/useWorkoutStore';
@@ -64,6 +65,8 @@ export default function ActiveWorkoutScreen() {
   const [exStates, setExStates]             = useState<Record<number, ExState>>({});
   const [elapsed, setElapsed]               = useState(0);
   const elapsedRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [reorderMode, setReorderMode]       = useState(false);
+  const [orderedExercises, setOrderedExercises] = useState<SessionExerciseResponse[]>([]);
 
   // ── Session bootstrap ───────────────────────────────────────────────────────
 
@@ -100,6 +103,24 @@ export default function ActiveWorkoutScreen() {
     const id = setInterval(() => tickRestTimer(), 1000);
     return () => clearInterval(id);
   }, [restTimerActive]);
+
+  // Keep orderedExercises in sync when session changes
+  useEffect(() => {
+    if (activeSession) setOrderedExercises([...activeSession.exercises]);
+  }, [activeSession?.id]);
+
+  const saveReorder = useCallback(async (newList: SessionExerciseResponse[]) => {
+    if (!activeSession) return;
+    setOrderedExercises(newList);
+    // Also update the active session's exercise order locally so normal view reflects it
+    setActiveSession({ ...activeSession, exercises: newList });
+    try {
+      await workoutsApi.reorderSessionExercises(
+        activeSession.id,
+        newList.map((e) => e.id)
+      );
+    } catch (_) { /* non-critical — local order already updated */ }
+  }, [activeSession]);
 
   // Initialise exStates when session loads
   useEffect(() => {
@@ -333,75 +354,138 @@ export default function ActiveWorkoutScreen() {
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm }}>
             {/* Rest timer toggle */}
+            {!reorderMode && (
+              <TouchableOpacity
+                onPress={() => { setRestEnabled((v) => !v); if (restTimerActive) stopRestTimer(); }}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 4,
+                  backgroundColor: restEnabled ? Colors.primaryTint : Colors.surfaceSubtle,
+                  borderRadius: Radius.full, paddingHorizontal: 10, paddingVertical: 6 }}>
+                <Ionicons name="timer-outline" size={14}
+                  color={restEnabled ? Colors.primary : Colors.textMuted} />
+                <Text style={{ fontSize: FontSize.xs, fontWeight: FontWeight.medium,
+                  color: restEnabled ? Colors.primary : Colors.textMuted }}>Rest</Text>
+              </TouchableOpacity>
+            )}
+            {/* Reorder toggle */}
             <TouchableOpacity
-              onPress={() => { setRestEnabled((v) => !v); if (restTimerActive) stopRestTimer(); }}
+              onPress={() => setReorderMode((v) => !v)}
               style={{ flexDirection: 'row', alignItems: 'center', gap: 4,
-                backgroundColor: restEnabled ? Colors.primaryTint : Colors.surfaceSubtle,
+                backgroundColor: reorderMode ? Colors.primary : Colors.surfaceSubtle,
                 borderRadius: Radius.full, paddingHorizontal: 10, paddingVertical: 6 }}>
-              <Ionicons name="timer-outline" size={14}
-                color={restEnabled ? Colors.primary : Colors.textMuted} />
-              <Text style={{ fontSize: FontSize.xs, fontWeight: FontWeight.medium,
-                color: restEnabled ? Colors.primary : Colors.textMuted }}>Rest</Text>
+              <Ionicons name="reorder-three-outline" size={14}
+                color={reorderMode ? Colors.textInverse : Colors.textMuted} />
             </TouchableOpacity>
             {/* Cancel */}
-            <TouchableOpacity onPress={handleCancel}
-              style={{ paddingHorizontal: 12, paddingVertical: 6,
-                borderRadius: Radius.full, borderWidth: 1, borderColor: Colors.border }}>
-              <Text style={{ fontSize: FontSize.sm, color: Colors.textSecondary }}>Cancel</Text>
-            </TouchableOpacity>
+            {!reorderMode && (
+              <TouchableOpacity onPress={handleCancel}
+                style={{ paddingHorizontal: 12, paddingVertical: 6,
+                  borderRadius: Radius.full, borderWidth: 1, borderColor: Colors.border }}>
+                <Text style={{ fontSize: FontSize.sm, color: Colors.textSecondary }}>Cancel</Text>
+              </TouchableOpacity>
+            )}
             {/* Finish */}
-            <TouchableOpacity onPress={handleFinish} disabled={completing}
-              style={{ backgroundColor: Colors.success, borderRadius: Radius.full,
-                paddingHorizontal: 16, paddingVertical: 8, opacity: completing ? 0.7 : 1 }}>
-              {completing
-                ? <ActivityIndicator size="small" color={Colors.textInverse} />
-                : <Text style={{ color: Colors.textInverse, fontWeight: FontWeight.semibold,
-                    fontSize: FontSize.sm }}>Finish</Text>}
-            </TouchableOpacity>
+            {!reorderMode && (
+              <TouchableOpacity onPress={handleFinish} disabled={completing}
+                style={{ backgroundColor: Colors.success, borderRadius: Radius.full,
+                  paddingHorizontal: 16, paddingVertical: 8, opacity: completing ? 0.7 : 1 }}>
+                {completing
+                  ? <ActivityIndicator size="small" color={Colors.textInverse} />
+                  : <Text style={{ color: Colors.textInverse, fontWeight: FontWeight.semibold,
+                      fontSize: FontSize.sm }}>Finish</Text>}
+              </TouchableOpacity>
+            )}
           </View>
         </View>
         <RestTimerBar />
       </View>
 
       {/* ── Exercise list ────────────────────────────────────────────────────── */}
-      <ScrollView contentContainerStyle={{ padding: Spacing.md, paddingBottom: 60 }}>
-        {grouped.map((group, gi) =>
-          group.length === 1 ? (
-            <ExerciseBlock
-              key={group[0].id}
-              ex={group[0]}
-              exState={exStates[group[0].id]}
-              onUpdateState={(p) => updateExState(group[0].id, p)}
-              onSetComplete={(i, w, r) => handleSetComplete(group[0], i, w, r)}
-              allSessionExercises={activeSession.exercises}
-              allStates={exStates}
-              onOpenSupersetPicker={() => setSupersetPickerForId(group[0].id)}
-              onRemoveFromGroup={() => handleRemoveFromGroup(group[0].id)}
-            />
-          ) : (
-            <SupersetBlock
-              key={gi}
-              exercises={group}
-              exStates={exStates}
-              onUpdateState={updateExState}
-              onSetComplete={handleSetComplete}
-              allSessionExercises={activeSession.exercises}
-              onOpenSupersetPicker={(id) => setSupersetPickerForId(id)}
-              onRemoveFromGroup={handleRemoveFromGroup}
-            />
-          )
-        )}
+      {reorderMode ? (
+        /* Reorder mode: lightweight draggable list */
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontSize: FontSize.xs, color: Colors.textMuted,
+            textAlign: 'center', paddingVertical: Spacing.sm }}>
+            Hold &amp; drag to reorder · tap ✓ when done
+          </Text>
+          <DraggableFlatList
+            data={orderedExercises}
+            keyExtractor={(ex) => String(ex.id)}
+            onDragEnd={({ data }) => saveReorder(data)}
+            contentContainerStyle={{ padding: Spacing.md, paddingBottom: 60 }}
+            renderItem={({ item: ex, drag, isActive }: RenderItemParams<SessionExerciseResponse>) => (
+              <View style={{
+                flexDirection: 'row', alignItems: 'center',
+                backgroundColor: isActive ? Colors.primaryTint : Colors.surface,
+                borderRadius: Radius.lg, marginBottom: Spacing.sm,
+                padding: Spacing.md, ...Shadow.card,
+                borderLeftWidth: 3,
+                borderLeftColor: exStates[ex.id]?.rows.every((r) => r.completed)
+                  ? Colors.success : Colors.primary,
+              }}>
+                <TouchableOpacity onLongPress={drag} delayLongPress={100}
+                  style={{ marginRight: Spacing.md, padding: 4 }}>
+                  <Ionicons name="reorder-three-outline" size={24} color={Colors.textMuted} />
+                </TouchableOpacity>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: FontSize.md, fontWeight: FontWeight.semibold,
+                    color: Colors.textPrimary }}>{ex.exercise.name}</Text>
+                  <Text style={{ fontSize: FontSize.xs, color: Colors.textMuted }}>
+                    {exStates[ex.id]?.rows.filter((r) => r.completed).length ?? 0}
+                    /{exStates[ex.id]?.rows.length ?? 0} sets done
+                  </Text>
+                </View>
+              </View>
+            )}
+          />
+          <TouchableOpacity
+            onPress={() => setReorderMode(false)}
+            style={{ position: 'absolute', bottom: 24, left: Spacing.lg, right: Spacing.lg,
+              backgroundColor: Colors.primary, borderRadius: Radius.md,
+              paddingVertical: 14, alignItems: 'center' }}>
+            <Text style={{ color: Colors.textInverse, fontWeight: FontWeight.semibold,
+              fontSize: FontSize.md }}>Done Reordering ✓</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <ScrollView contentContainerStyle={{ padding: Spacing.md, paddingBottom: 60 }}>
+          {grouped.map((group, gi) =>
+            group.length === 1 ? (
+              <ExerciseBlock
+                key={group[0].id}
+                ex={group[0]}
+                exState={exStates[group[0].id]}
+                onUpdateState={(p) => updateExState(group[0].id, p)}
+                onSetComplete={(i, w, r) => handleSetComplete(group[0], i, w, r)}
+                allSessionExercises={activeSession.exercises}
+                allStates={exStates}
+                onOpenSupersetPicker={() => setSupersetPickerForId(group[0].id)}
+                onRemoveFromGroup={() => handleRemoveFromGroup(group[0].id)}
+              />
+            ) : (
+              <SupersetBlock
+                key={gi}
+                exercises={group}
+                exStates={exStates}
+                onUpdateState={updateExState}
+                onSetComplete={handleSetComplete}
+                allSessionExercises={activeSession.exercises}
+                onOpenSupersetPicker={(id) => setSupersetPickerForId(id)}
+                onRemoveFromGroup={handleRemoveFromGroup}
+              />
+            )
+          )}
 
-        <TouchableOpacity onPress={() => setAddExVisible(true)}
-          style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-            gap: 8, borderRadius: Radius.lg, borderWidth: 1.5,
-            borderColor: Colors.primary, borderStyle: 'dashed',
-            paddingVertical: Spacing.md, marginTop: Spacing.sm }}>
-          <Ionicons name="add-circle-outline" size={18} color={Colors.primary} />
-          <Text style={{ color: Colors.primary, fontWeight: FontWeight.medium,
-            fontSize: FontSize.sm }}>Add Exercise</Text>
-        </TouchableOpacity>
-      </ScrollView>
+          <TouchableOpacity onPress={() => setAddExVisible(true)}
+            style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+              gap: 8, borderRadius: Radius.lg, borderWidth: 1.5,
+              borderColor: Colors.primary, borderStyle: 'dashed',
+              paddingVertical: Spacing.md, marginTop: Spacing.sm }}>
+            <Ionicons name="add-circle-outline" size={18} color={Colors.primary} />
+            <Text style={{ color: Colors.primary, fontWeight: FontWeight.medium,
+              fontSize: FontSize.sm }}>Add Exercise</Text>
+          </TouchableOpacity>
+        </ScrollView>
+      )}
 
       {/* ── Modals ───────────────────────────────────────────────────────────── */}
       <AddExerciseModal

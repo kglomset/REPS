@@ -64,7 +64,7 @@ public class WorkoutController {
         return workoutService.logSet(principal.getId(), sessionId, exerciseId, req);
     }
 
-    /** Update a workout template (e.g. change its scheduled day). */
+    /** Update a workout template (rename and/or change scheduled day). */
     @PatchMapping("/templates/{templateId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void updateTemplate(@AuthenticationPrincipal UserPrincipal principal,
@@ -72,7 +72,32 @@ public class WorkoutController {
                                @RequestBody Map<String, Object> body) {
         Integer dayIndex = body.get("dayIndex") != null
                 ? ((Number) body.get("dayIndex")).intValue() : null;
-        workoutService.updateTemplate(principal.getId(), templateId, dayIndex);
+        String name = body.get("name") != null ? (String) body.get("name") : null;
+        workoutService.updateTemplate(principal.getId(), templateId, dayIndex, name);
+    }
+
+    /** Reorder exercises within a workout template. Body: { "exerciseIds": [1,2,3] } */
+    @PatchMapping("/templates/{templateId}/reorder")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void reorderTemplateExercises(@AuthenticationPrincipal UserPrincipal principal,
+                                         @PathVariable Long templateId,
+                                         @RequestBody Map<String, Object> body) {
+        @SuppressWarnings("unchecked")
+        List<Long> ids = ((List<Number>) body.get("exerciseIds")).stream()
+                .map(Number::longValue).toList();
+        workoutService.reorderTemplateExercises(principal.getId(), templateId, ids);
+    }
+
+    /** Reorder exercises within an active session. Body: { "exerciseIds": [1,2,3] } */
+    @PatchMapping("/sessions/{sessionId}/reorder")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void reorderSessionExercises(@AuthenticationPrincipal UserPrincipal principal,
+                                        @PathVariable Long sessionId,
+                                        @RequestBody Map<String, Object> body) {
+        @SuppressWarnings("unchecked")
+        List<Long> ids = ((List<Number>) body.get("exerciseIds")).stream()
+                .map(Number::longValue).toList();
+        workoutService.reorderSessionExercises(principal.getId(), sessionId, ids);
     }
 
     /** Persist structural workout changes (sets, rest, superset, method) back to the template. */

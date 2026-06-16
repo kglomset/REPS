@@ -28,6 +28,9 @@ public class User {
     @Column(nullable = false, length = 100)
     private String name;
 
+    @Column(name = "avatar_url", columnDefinition = "TEXT")
+    private String avatarUrl;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private FitnessLevel fitnessLevel;

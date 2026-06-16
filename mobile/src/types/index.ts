@@ -11,6 +11,7 @@ export interface AuthResponse {
   userId: number;
   name: string;
   email: string;
+  avatarUrl?: string | null;
   fitnessLevel: FitnessLevel;
 }
 

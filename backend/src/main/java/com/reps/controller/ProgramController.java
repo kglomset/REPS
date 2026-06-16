@@ -11,6 +11,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @RestController
@@ -48,5 +49,23 @@ public class ProgramController {
     public ProgramResponse activate(@AuthenticationPrincipal UserPrincipal principal,
                                     @PathVariable Long id) {
         return programService.activateProgram(principal.getId(), id);
+    }
+
+    /** Deactivate a specific program without activating another. */
+    @PostMapping("/{id}/deactivate")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deactivate(@AuthenticationPrincipal UserPrincipal principal,
+                           @PathVariable Long id) {
+        programService.deactivateProgram(principal.getId(), id);
+    }
+
+    /** Rename or update metadata of a program. */
+    @PatchMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void update(@AuthenticationPrincipal UserPrincipal principal,
+                       @PathVariable Long id,
+                       @RequestBody Map<String, Object> body) {
+        String name = body.get("name") != null ? (String) body.get("name") : null;
+        programService.updateProgram(principal.getId(), id, name);
     }
 }

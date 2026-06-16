@@ -10,5 +10,6 @@ public class AuthResponse {
     private Long userId;
     private String name;
     private String email;
+    private String avatarUrl;
     private FitnessLevel fitnessLevel;
 }

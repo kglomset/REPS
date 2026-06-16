@@ -31,9 +31,19 @@ export const workoutsApi = {
       .post<ExerciseSetResponse>(ENDPOINTS.workouts.logSet(sessionId, exerciseId), data)
       .then((r) => r.data),
 
-  updateTemplate: (templateId: number, data: { dayIndex?: number }) =>
+  updateTemplate: (templateId: number, data: { dayIndex?: number; name?: string }) =>
     client
       .patch(`/workouts/templates/${templateId}`, data)
+      .then((r) => r.data),
+
+  reorderTemplateExercises: (templateId: number, exerciseIds: number[]) =>
+    client
+      .patch(`/workouts/templates/${templateId}/reorder`, { exerciseIds })
+      .then((r) => r.data),
+
+  reorderSessionExercises: (sessionId: number, exerciseIds: number[]) =>
+    client
+      .patch(`/workouts/sessions/${sessionId}/reorder`, { exerciseIds })
       .then((r) => r.data),
 
   updateTemplateExercise: (

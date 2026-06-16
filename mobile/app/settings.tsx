@@ -1,24 +1,29 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
-  Alert, Platform,
+  Alert, Platform, Image, Modal, FlatList,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import { progressApi } from '@/services/api/progress';
 import { programsApi } from '@/services/api/programs';
+import { usersApi } from '@/services/api/users';
+import { workoutsApi } from '@/services/api/workouts';
 import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/constants/theme';
 import { format } from 'date-fns';
+import { ProgramResponse } from '@/types';
 
 export default function SettingsScreen() {
-  const { user, logout } = useAuthStore();
+  const { user, logout, updateUser } = useAuthStore();
   const queryClient = useQueryClient();
-  const [weight, setWeight] = useState('');
 
+  // ── Weight log ──────────────────────────────────────────────────────────
+  const [weight, setWeight] = useState('');
   const { weightGoal, startWeight, hydrate, setWeightGoal, setStartWeight, isHydrated }
     = useSettingsStore();
   const [goalInput,  setGoalInput]  = useState('');
@@ -32,17 +37,58 @@ export default function SettingsScreen() {
     }
   }, [isHydrated, weightGoal, startWeight]);
 
+  // ── Profile edit ────────────────────────────────────────────────────────
+  const [editingName, setEditingName] = useState(false);
+  const [nameInput, setNameInput] = useState(user?.name ?? '');
+
+  // ── Program rename modal ────────────────────────────────────────────────
+  const [renameProgramModal, setRenameProgramModal] = useState<ProgramResponse | null>(null);
+  const [renameProgramInput, setRenameProgramInput] = useState('');
+
+  // ── Template rename modal ───────────────────────────────────────────────
+  const [renameTemplateModal, setRenameTemplateModal] = useState<{ id: number; name: string } | null>(null);
+  const [renameTemplateInput, setRenameTemplateInput] = useState('');
+
   const { data: programs } = useQuery({
     queryKey: ['programs'],
     queryFn: programsApi.list,
   });
 
+  // ── Mutations ───────────────────────────────────────────────────────────
   const { mutate: activateProgram } = useMutation({
     mutationFn: (id: number) => programsApi.activate(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['activeProgram'] });
       queryClient.invalidateQueries({ queryKey: ['programs'] });
-      Alert.alert('Program activated', 'Your active program has been updated.');
+    },
+    onError: (e: Error) => Alert.alert('Error', e.message),
+  });
+
+  const { mutate: deactivateProgram } = useMutation({
+    mutationFn: (id: number) => programsApi.deactivate(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['activeProgram'] });
+      queryClient.invalidateQueries({ queryKey: ['programs'] });
+    },
+    onError: (e: Error) => Alert.alert('Error', e.message),
+  });
+
+  const { mutate: renameProgram } = useMutation({
+    mutationFn: ({ id, name }: { id: number; name: string }) => programsApi.update(id, { name }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['programs'] });
+      setRenameProgramModal(null);
+    },
+    onError: (e: Error) => Alert.alert('Error', e.message),
+  });
+
+  const { mutate: renameTemplate } = useMutation({
+    mutationFn: ({ id, name }: { id: number; name: string }) =>
+      workoutsApi.updateTemplate(id, { name }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['programs'] });
+      queryClient.invalidateQueries({ queryKey: ['activeProgram'] });
+      setRenameTemplateModal(null);
     },
     onError: (e: Error) => Alert.alert('Error', e.message),
   });
@@ -60,6 +106,44 @@ export default function SettingsScreen() {
     onError: (e: Error) => Alert.alert('Error', e.message),
   });
 
+  const { mutate: updateProfile } = useMutation({
+    mutationFn: (data: { name?: string; avatarUrl?: string | null }) =>
+      usersApi.updateMe(data),
+    onSuccess: (res) => {
+      updateUser({ name: res.name, avatarUrl: res.avatarUrl });
+      setEditingName(false);
+    },
+    onError: (e: Error) => Alert.alert('Error', e.message),
+  });
+
+  // ── Profile photo picker ─────────────────────────────────────────────────
+  const pickAvatar = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert('Permission needed', 'Allow access to your photo library to set a profile photo.');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.5,
+      base64: true,
+    });
+    if (!result.canceled && result.assets[0]) {
+      const asset = result.assets[0];
+      const base64Uri = `data:image/jpeg;base64,${asset.base64}`;
+      updateProfile({ avatarUrl: base64Uri });
+    }
+  };
+
+  const removeAvatar = () => {
+    Alert.alert('Remove photo', 'Remove your profile photo?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Remove', style: 'destructive', onPress: () => updateProfile({ avatarUrl: null }) },
+    ]);
+  };
+
   const handleLogout = () => {
     const doLogout = async () => {
       try { await logout(); } catch (_) {}
@@ -75,6 +159,8 @@ export default function SettingsScreen() {
     }
   };
 
+  const avatarUrl = user?.avatarUrl;
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: Colors.surfaceMuted }}>
       <ScrollView contentContainerStyle={{ padding: Spacing.lg, paddingBottom: 100 }}>
@@ -87,21 +173,80 @@ export default function SettingsScreen() {
           <Text style={{ color: Colors.primary, fontSize: FontSize.md }}>Back</Text>
         </TouchableOpacity>
 
-        {/* Profile card */}
+        {/* ── Profile card ──────────────────────────────────────────── */}
         <View style={{ backgroundColor: Colors.surface, borderRadius: Radius.xl,
           padding: Spacing.lg, ...Shadow.card, marginBottom: Spacing.lg,
           alignItems: 'center' }}>
-          <View style={{ width: 64, height: 64, borderRadius: 32,
-            backgroundColor: Colors.primaryTint,
-            alignItems: 'center', justifyContent: 'center', marginBottom: Spacing.sm }}>
-            <Text style={{ fontSize: FontSize.xxl, fontWeight: FontWeight.bold,
-              color: Colors.primary }}>
-              {user?.name?.[0]?.toUpperCase() ?? '?'}
-            </Text>
-          </View>
-          <Text style={{ fontSize: FontSize.lg, fontWeight: FontWeight.bold,
-            color: Colors.textPrimary }}>{user?.name}</Text>
-          <Text style={{ fontSize: FontSize.sm, color: Colors.textSecondary }}>{user?.email}</Text>
+
+          {/* Avatar */}
+          <TouchableOpacity onPress={pickAvatar} style={{ marginBottom: Spacing.sm }}>
+            {avatarUrl ? (
+              <Image
+                source={{ uri: avatarUrl }}
+                style={{ width: 72, height: 72, borderRadius: 36 }}
+              />
+            ) : (
+              <View style={{ width: 72, height: 72, borderRadius: 36,
+                backgroundColor: Colors.primaryTint,
+                alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ fontSize: 28, fontWeight: FontWeight.bold, color: Colors.primary }}>
+                  {user?.name?.[0]?.toUpperCase() ?? '?'}
+                </Text>
+              </View>
+            )}
+            {/* Camera badge */}
+            <View style={{ position: 'absolute', bottom: 0, right: 0,
+              backgroundColor: Colors.primary, borderRadius: 12,
+              width: 24, height: 24, alignItems: 'center', justifyContent: 'center',
+              borderWidth: 2, borderColor: Colors.surface }}>
+              <Ionicons name="camera" size={12} color="#fff" />
+            </View>
+          </TouchableOpacity>
+          {avatarUrl && (
+            <TouchableOpacity onPress={removeAvatar} style={{ marginBottom: 4 }}>
+              <Text style={{ fontSize: FontSize.xs, color: Colors.textMuted }}>Remove photo</Text>
+            </TouchableOpacity>
+          )}
+
+          {/* Name */}
+          {editingName ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
+              marginTop: Spacing.xs }}>
+              <TextInput
+                value={nameInput}
+                onChangeText={setNameInput}
+                autoFocus
+                style={{ borderBottomWidth: 1, borderColor: Colors.primary,
+                  fontSize: FontSize.lg, fontWeight: FontWeight.bold,
+                  color: Colors.textPrimary, minWidth: 120, textAlign: 'center',
+                  paddingVertical: 2 }}
+              />
+              <TouchableOpacity
+                onPress={() => {
+                  if (nameInput.trim()) updateProfile({ name: nameInput.trim() });
+                  else setEditingName(false);
+                }}
+              >
+                <Ionicons name="checkmark-circle" size={22} color={Colors.primary} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => { setNameInput(user?.name ?? ''); setEditingName(false); }}>
+                <Ionicons name="close-circle" size={22} color={Colors.textMuted} />
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <TouchableOpacity
+              onPress={() => { setNameInput(user?.name ?? ''); setEditingName(true); }}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}
+            >
+              <Text style={{ fontSize: FontSize.lg, fontWeight: FontWeight.bold,
+                color: Colors.textPrimary }}>{user?.name}</Text>
+              <Ionicons name="pencil" size={14} color={Colors.textMuted} />
+            </TouchableOpacity>
+          )}
+
+          <Text style={{ fontSize: FontSize.sm, color: Colors.textSecondary, marginTop: 2 }}>
+            {user?.email}
+          </Text>
           <View style={{ backgroundColor: Colors.primaryTint, paddingHorizontal: 10,
             paddingVertical: 4, borderRadius: Radius.full, marginTop: Spacing.sm }}>
             <Text style={{ fontSize: FontSize.xs, color: Colors.primary, fontWeight: FontWeight.medium }}>
@@ -110,14 +255,14 @@ export default function SettingsScreen() {
           </View>
         </View>
 
-        {/* Body weight */}
+        {/* ── Body Weight ───────────────────────────────────────────── */}
         <SectionHeader title="Body Weight" />
         <View style={{ backgroundColor: Colors.surface, borderRadius: Radius.xl,
-          padding: Spacing.md, ...Shadow.card, marginBottom: Spacing.lg }}>
+          padding: Spacing.md, ...Shadow.card, marginBottom: Spacing.md }}>
           <Text style={{ fontSize: FontSize.sm, color: Colors.textSecondary, marginBottom: Spacing.sm }}>
             Log today's weight (kg)
           </Text>
-          <View style={{ flexDirection: 'row', gap: Spacing.sm }}>
+          <View style={{ flexDirection: 'row', gap: Spacing.sm, alignItems: 'center' }}>
             <TextInput
               value={weight}
               onChangeText={setWeight}
@@ -125,19 +270,26 @@ export default function SettingsScreen() {
               placeholderTextColor={Colors.textMuted}
               keyboardType="decimal-pad"
               style={{
-                flex: 1, backgroundColor: Colors.surfaceMuted, borderRadius: Radius.md,
-                paddingHorizontal: Spacing.md, paddingVertical: 12,
-                fontSize: FontSize.md, color: Colors.textPrimary,
-                borderWidth: 1, borderColor: Colors.border,
+                flex: 1,
+                backgroundColor: Colors.surfaceMuted,
+                borderRadius: Radius.md,
+                paddingHorizontal: Spacing.md,
+                paddingVertical: 12,
+                fontSize: FontSize.md,
+                color: Colors.textPrimary,
+                borderWidth: 1,
+                borderColor: Colors.border,
               }}
             />
             <TouchableOpacity
               onPress={() => { if (weight) logWeight(); }}
               disabled={!weight}
               style={{
-                backgroundColor: Colors.primary, borderRadius: Radius.md,
-                paddingHorizontal: Spacing.lg, justifyContent: 'center',
-                opacity: weight ? 1 : 0.5,
+                backgroundColor: Colors.primary,
+                borderRadius: Radius.md,
+                paddingHorizontal: Spacing.lg,
+                paddingVertical: 12,
+                opacity: weight ? 1 : 0.4,
               }}
             >
               <Text style={{ color: Colors.textInverse, fontWeight: FontWeight.semibold }}>Save</Text>
@@ -145,7 +297,7 @@ export default function SettingsScreen() {
           </View>
         </View>
 
-        {/* Weight goal */}
+        {/* ── Weight Goal ───────────────────────────────────────────── */}
         <SectionHeader title="Weight Goal" />
         <View style={{ backgroundColor: Colors.surface, borderRadius: Radius.xl,
           padding: Spacing.md, ...Shadow.card, marginBottom: Spacing.lg }}>
@@ -154,8 +306,9 @@ export default function SettingsScreen() {
           </Text>
           <View style={{ flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.sm }}>
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: FontSize.xs, color: Colors.textSecondary,
-                marginBottom: 4 }}>Starting weight (kg)</Text>
+              <Text style={{ fontSize: FontSize.xs, color: Colors.textSecondary, marginBottom: 4 }}>
+                Starting weight (kg)
+              </Text>
               <TextInput
                 value={startInput}
                 onChangeText={setStartInput}
@@ -175,8 +328,9 @@ export default function SettingsScreen() {
               />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: FontSize.xs, color: Colors.textSecondary,
-                marginBottom: 4 }}>Goal weight (kg)</Text>
+              <Text style={{ fontSize: FontSize.xs, color: Colors.textSecondary, marginBottom: 4 }}>
+                Goal weight (kg)
+              </Text>
               <TextInput
                 value={goalInput}
                 onChangeText={setGoalInput}
@@ -203,68 +357,87 @@ export default function SettingsScreen() {
                 {Math.abs(weightGoal - startWeight) < 0.5
                   ? '⚖️ Maintenance — trend is always gray'
                   : weightGoal > startWeight
-                    ? `📈 Gaining — weight increases will show green`
-                    : `📉 Losing — weight decreases will show green`}
+                    ? '📈 Gaining — weight increases will show green'
+                    : '📉 Losing — weight decreases will show green'}
               </Text>
             </View>
           )}
         </View>
 
-        {/* Programs */}
+        {/* ── Programs ──────────────────────────────────────────────── */}
         {programs && programs.length > 0 && (
           <>
             <SectionHeader title="Programs" />
             <View style={{ backgroundColor: Colors.surface, borderRadius: Radius.xl,
               ...Shadow.card, marginBottom: Spacing.lg, overflow: 'hidden' }}>
               {programs.map((p, i) => (
-                <View key={p.id} style={{
-                  flexDirection: 'row', alignItems: 'center',
-                  padding: Spacing.md,
-                  borderBottomWidth: i < programs.length - 1 ? 1 : 0,
-                  borderBottomColor: Colors.border,
-                }}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: FontSize.md, color: Colors.textPrimary,
-                      fontWeight: FontWeight.medium }}>{p.name}</Text>
-                    <Text style={{ fontSize: FontSize.xs, color: Colors.textSecondary }}>
-                      {p.strengthDaysPerWeek}d/wk · {p.goal.toLowerCase()}
-                    </Text>
-                  </View>
-                  {p.active ? (
-                    <View style={{ backgroundColor: Colors.successTint, borderRadius: Radius.full,
-                      paddingHorizontal: 10, paddingVertical: 4 }}>
-                      <Text style={{ fontSize: FontSize.xs, color: Colors.success,
-                        fontWeight: FontWeight.semibold }}>Active</Text>
+                <View key={p.id}>
+                  {/* Program row */}
+                  <View style={{
+                    flexDirection: 'row', alignItems: 'center',
+                    padding: Spacing.md,
+                    borderBottomWidth: 1, borderBottomColor: Colors.border,
+                  }}>
+                    <View style={{ flex: 1 }}>
+                      <TouchableOpacity
+                        onPress={() => {
+                          setRenameProgramInput(p.name);
+                          setRenameProgramModal(p);
+                        }}
+                        style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
+                      >
+                        <Text style={{ fontSize: FontSize.md, color: Colors.textPrimary,
+                          fontWeight: FontWeight.medium }}>{p.name}</Text>
+                        <Ionicons name="pencil" size={13} color={Colors.textMuted} />
+                      </TouchableOpacity>
+                      <Text style={{ fontSize: FontSize.xs, color: Colors.textSecondary }}>
+                        {p.strengthDaysPerWeek}d/wk · {p.goal.toLowerCase()}
+                      </Text>
                     </View>
-                  ) : (
-                    <TouchableOpacity
-                      onPress={() => {
-                        Alert.alert(
-                          'Activate program',
-                          `Switch to "${p.name}"? This will deactivate your current program.`,
-                          [
-                            { text: 'Cancel', style: 'cancel' },
-                            { text: 'Activate', onPress: () => activateProgram(p.id) },
-                          ]
-                        );
-                      }}
-                      style={{ backgroundColor: Colors.primaryTint, borderRadius: Radius.full,
-                        paddingHorizontal: 10, paddingVertical: 4 }}>
-                      <Text style={{ fontSize: FontSize.xs, color: Colors.primary,
-                        fontWeight: FontWeight.semibold }}>Activate</Text>
-                    </TouchableOpacity>
-                  )}
+
+                    {p.active ? (
+                      <TouchableOpacity
+                        onPress={() =>
+                          Alert.alert('Deactivate program',
+                            `Deactivate "${p.name}"? You won't have an active program.`,
+                            [
+                              { text: 'Cancel', style: 'cancel' },
+                              { text: 'Deactivate', style: 'destructive',
+                                onPress: () => deactivateProgram(p.id) },
+                            ])
+                        }
+                        style={{ backgroundColor: Colors.successTint, borderRadius: Radius.full,
+                          paddingHorizontal: 10, paddingVertical: 4 }}>
+                        <Text style={{ fontSize: FontSize.xs, color: Colors.success,
+                          fontWeight: FontWeight.semibold }}>Active ✓</Text>
+                      </TouchableOpacity>
+                    ) : (
+                      <TouchableOpacity
+                        onPress={() =>
+                          Alert.alert('Activate program',
+                            `Switch to "${p.name}"? This will deactivate your current program.`,
+                            [
+                              { text: 'Cancel', style: 'cancel' },
+                              { text: 'Activate', onPress: () => activateProgram(p.id) },
+                            ])
+                        }
+                        style={{ backgroundColor: Colors.primaryTint, borderRadius: Radius.full,
+                          paddingHorizontal: 10, paddingVertical: 4 }}>
+                        <Text style={{ fontSize: FontSize.xs, color: Colors.primary,
+                          fontWeight: FontWeight.semibold }}>Activate</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
                 </View>
               ))}
             </View>
           </>
         )}
 
-        {/* Account */}
+        {/* ── Account ───────────────────────────────────────────────── */}
         <SectionHeader title="Account" />
         <View style={{ backgroundColor: Colors.surface, borderRadius: Radius.xl,
           overflow: 'hidden', ...Shadow.card }}>
-          <SettingsRow icon="person-outline" label="Edit Profile" onPress={() => {}} />
           <SettingsRow icon="notifications-outline" label="Notifications" onPress={() => {}} />
           <SettingsRow icon="barbell-outline" label="New Program"
             onPress={() => router.push('/program/setup')} />
@@ -272,6 +445,94 @@ export default function SettingsScreen() {
             onPress={handleLogout} destructive />
         </View>
       </ScrollView>
+
+      {/* ── Rename Program Modal ────────────────────────────────────── */}
+      <Modal visible={!!renameProgramModal} transparent animationType="fade">
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)',
+          justifyContent: 'center', alignItems: 'center', padding: Spacing.lg }}>
+          <View style={{ backgroundColor: Colors.surface, borderRadius: Radius.xl,
+            padding: Spacing.lg, width: '100%', maxWidth: 360 }}>
+            <Text style={{ fontSize: FontSize.lg, fontWeight: FontWeight.bold,
+              color: Colors.textPrimary, marginBottom: Spacing.md }}>
+              Rename Program
+            </Text>
+            <TextInput
+              value={renameProgramInput}
+              onChangeText={setRenameProgramInput}
+              autoFocus
+              placeholder="Program name"
+              placeholderTextColor={Colors.textMuted}
+              style={{ backgroundColor: Colors.surfaceMuted, borderRadius: Radius.md,
+                paddingHorizontal: Spacing.md, paddingVertical: 12,
+                fontSize: FontSize.md, color: Colors.textPrimary,
+                borderWidth: 1, borderColor: Colors.border, marginBottom: Spacing.md }}
+            />
+            <View style={{ flexDirection: 'row', gap: Spacing.sm }}>
+              <TouchableOpacity
+                onPress={() => setRenameProgramModal(null)}
+                style={{ flex: 1, paddingVertical: 12, borderRadius: Radius.md,
+                  backgroundColor: Colors.surfaceMuted, alignItems: 'center' }}
+              >
+                <Text style={{ color: Colors.textSecondary, fontWeight: FontWeight.medium }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => {
+                  if (renameProgramModal && renameProgramInput.trim())
+                    renameProgram({ id: renameProgramModal.id, name: renameProgramInput.trim() });
+                }}
+                style={{ flex: 1, paddingVertical: 12, borderRadius: Radius.md,
+                  backgroundColor: Colors.primary, alignItems: 'center' }}
+              >
+                <Text style={{ color: '#fff', fontWeight: FontWeight.semibold }}>Save</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Rename Template Modal ────────────────────────────────────── */}
+      <Modal visible={!!renameTemplateModal} transparent animationType="fade">
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)',
+          justifyContent: 'center', alignItems: 'center', padding: Spacing.lg }}>
+          <View style={{ backgroundColor: Colors.surface, borderRadius: Radius.xl,
+            padding: Spacing.lg, width: '100%', maxWidth: 360 }}>
+            <Text style={{ fontSize: FontSize.lg, fontWeight: FontWeight.bold,
+              color: Colors.textPrimary, marginBottom: Spacing.md }}>
+              Rename Workout
+            </Text>
+            <TextInput
+              value={renameTemplateInput}
+              onChangeText={setRenameTemplateInput}
+              autoFocus
+              placeholder="Workout name"
+              placeholderTextColor={Colors.textMuted}
+              style={{ backgroundColor: Colors.surfaceMuted, borderRadius: Radius.md,
+                paddingHorizontal: Spacing.md, paddingVertical: 12,
+                fontSize: FontSize.md, color: Colors.textPrimary,
+                borderWidth: 1, borderColor: Colors.border, marginBottom: Spacing.md }}
+            />
+            <View style={{ flexDirection: 'row', gap: Spacing.sm }}>
+              <TouchableOpacity
+                onPress={() => setRenameTemplateModal(null)}
+                style={{ flex: 1, paddingVertical: 12, borderRadius: Radius.md,
+                  backgroundColor: Colors.surfaceMuted, alignItems: 'center' }}
+              >
+                <Text style={{ color: Colors.textSecondary, fontWeight: FontWeight.medium }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => {
+                  if (renameTemplateModal && renameTemplateInput.trim())
+                    renameTemplate({ id: renameTemplateModal.id, name: renameTemplateInput.trim() });
+                }}
+                style={{ flex: 1, paddingVertical: 12, borderRadius: Radius.md,
+                  backgroundColor: Colors.primary, alignItems: 'center' }}
+              >
+                <Text style={{ color: '#fff', fontWeight: FontWeight.semibold }}>Save</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
