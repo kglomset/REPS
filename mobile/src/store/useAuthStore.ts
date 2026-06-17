@@ -32,7 +32,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         set({ user: JSON.parse(userJson), isAuthenticated: true });
       }
     } catch (e) {
-      // Storage unavailable — treat as logged out
+      // Storage unavailable -- treat as logged out
     } finally {
       set({ isLoading: false });
     }

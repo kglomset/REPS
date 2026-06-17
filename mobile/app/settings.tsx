@@ -1,13 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
-  Alert, Platform, Image, Modal, FlatList,
+  Alert, Platform, Image, Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
-import * as ImagePicker from 'expo-image-picker';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import { progressApi } from '@/services/api/progress';
@@ -117,23 +116,25 @@ export default function SettingsScreen() {
   });
 
   // ── Profile photo picker ─────────────────────────────────────────────────
-  const pickAvatar = async () => {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      Alert.alert('Permission needed', 'Allow access to your photo library to set a profile photo.');
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.5,
-      base64: true,
-    });
-    if (!result.canceled && result.assets[0]) {
-      const asset = result.assets[0];
-      const base64Uri = `data:image/jpeg;base64,${asset.base64}`;
-      updateProfile({ avatarUrl: base64Uri });
+  // On web we use a hidden file input; on native this is a placeholder
+  const pickAvatar = () => {
+    if (Platform.OS === 'web') {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*';
+      input.onchange = (e: any) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          const dataUri = ev.target?.result as string;
+          if (dataUri) updateProfile({ avatarUrl: dataUri });
+        };
+        reader.readAsDataURL(file);
+      };
+      input.click();
+    } else {
+      Alert.alert('Coming soon', 'Photo upload is not yet available on this platform.');
     }
   };
 
