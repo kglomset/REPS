@@ -626,7 +626,7 @@ function DiyBuilder({ editProgramId }: { editProgramId?: number }) {
 
         {/* Selected exercises with drag-to-reorder + sets/reps editing */}
         {editingDay.exercises.length > 0 && (
-          <View style={{ borderBottomWidth: 1, borderBottomColor: Colors.border, maxHeight: 320 }}>
+          <View style={{ borderBottomWidth: 1, borderBottomColor: Colors.border, maxHeight: 320, overflow: 'hidden' }}>
             <Text style={{ fontSize: FontSize.xs, color: Colors.textMuted,
               fontWeight: FontWeight.medium, paddingHorizontal: Spacing.lg,
               paddingTop: Spacing.md, paddingBottom: 6 }}>
@@ -768,7 +768,7 @@ function DiyBuilder({ editProgramId }: { editProgramId?: number }) {
           </View>
         </View>
 
-        <ScrollView>
+        <ScrollView style={{ flex: 1 }}>
           {filtered.map((ex) => {
             const added = editingDay.exercises.some((e) => e.exercise.id === ex.id);
             return (

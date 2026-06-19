@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import { Tabs, Redirect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/store/useAuthStore';
@@ -21,6 +22,10 @@ export default function TabLayout() {
           borderTopColor: Colors.border,
           paddingBottom: 4,
           height: 60,
+          // On web, pin the bar flush to the bottom of the viewport.
+          ...(Platform.OS === 'web'
+            ? ({ position: 'fixed', bottom: 0, left: 0, right: 0 } as any)
+            : {}),
         },
         tabBarLabelStyle: { fontSize: FontSize.xs, fontWeight: '500' },
       }}
