@@ -119,7 +119,8 @@ public class ProgramService {
         };
 
         int[] targetReps = repRange(req.getGoal());
-        int targetRestSeconds = req.getGoal() == TrainingGoal.STRENGTH ? 240 : 90;
+        // Hypertrophy default rest is 2 minutes (120s); strength uses longer rests.
+        int targetRestSeconds = req.getGoal() == TrainingGoal.STRENGTH ? 240 : 120;
         int setsPerExercise = req.getGoal() == TrainingGoal.STRENGTH ? 4 : 3;
 
         // Distribute training days across the week (Mon=0, skip weekends for >4 days)

@@ -128,7 +128,25 @@ export default function SettingsScreen() {
         const reader = new FileReader();
         reader.onload = (ev) => {
           const dataUri = ev.target?.result as string;
-          if (dataUri) updateProfile({ avatarUrl: dataUri });
+          if (!dataUri) return;
+          // Downscale + compress so the stored avatar is a small, reliable data URI.
+          const img = new (window as any).Image();
+          img.onload = () => {
+            const MAX = 256;
+            const scale = Math.min(1, MAX / Math.max(img.width, img.height));
+            const w = Math.round(img.width * scale);
+            const h = Math.round(img.height * scale);
+            const canvas = document.createElement('canvas');
+            canvas.width = w;
+            canvas.height = h;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) { updateProfile({ avatarUrl: dataUri }); return; }
+            ctx.drawImage(img, 0, 0, w, h);
+            const compressed = canvas.toDataURL('image/jpeg', 0.85);
+            updateProfile({ avatarUrl: compressed });
+          };
+          img.onerror = () => updateProfile({ avatarUrl: dataUri });
+          img.src = dataUri;
         };
         reader.readAsDataURL(file);
       };
@@ -305,6 +323,23 @@ export default function SettingsScreen() {
           <Text style={{ fontSize: FontSize.sm, color: Colors.textSecondary, marginBottom: Spacing.sm }}>
             Used to color-code your progress trend on the home screen.
           </Text>
+
+          {/* Current goal display — replaces whenever a new goal is set */}
+          {weightGoal !== undefined && (
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+              backgroundColor: Colors.successTint, borderRadius: Radius.md,
+              paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, marginBottom: Spacing.sm }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Ionicons name="flag" size={14} color={Colors.success} />
+                <Text style={{ fontSize: FontSize.sm, color: Colors.success,
+                  fontWeight: FontWeight.semibold }}>Current goal</Text>
+              </View>
+              <Text style={{ fontSize: FontSize.md, color: Colors.success, fontWeight: FontWeight.bold }}>
+                {weightGoal} kg{startWeight !== undefined ? `  ·  from ${startWeight} kg` : ''}
+              </Text>
+            </View>
+          )}
+
           <View style={{ flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.sm }}>
             <View style={{ flex: 1 }}>
               <Text style={{ fontSize: FontSize.xs, color: Colors.textSecondary, marginBottom: 4 }}>
@@ -381,19 +416,18 @@ export default function SettingsScreen() {
                   }}>
                     <View style={{ flex: 1 }}>
                       <TouchableOpacity
-                        onPress={() => {
-                          setRenameProgramInput(p.name);
-                          setRenameProgramModal(p);
-                        }}
+                        onPress={() => router.push('/program/setup')}
                         style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
                       >
                         <Text style={{ fontSize: FontSize.md, color: Colors.textPrimary,
                           fontWeight: FontWeight.medium }}>{p.name}</Text>
-                        <Ionicons name="pencil" size={13} color={Colors.textMuted} />
+                        <Ionicons name="create-outline" size={15} color={Colors.primary} />
                       </TouchableOpacity>
-                      <Text style={{ fontSize: FontSize.xs, color: Colors.textSecondary }}>
-                        {p.strengthDaysPerWeek}d/wk · {p.goal.toLowerCase()}
-                      </Text>
+                      <TouchableOpacity onPress={() => router.push('/program/setup')}>
+                        <Text style={{ fontSize: FontSize.xs, color: Colors.textSecondary }}>
+                          {p.strengthDaysPerWeek}d/wk · {p.goal.toLowerCase()} · tap to edit
+                        </Text>
+                      </TouchableOpacity>
                     </View>
 
                     {p.active ? (

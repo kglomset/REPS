@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator, Modal, ScrollView, Text,
+  ActivityIndicator, Alert, Modal, ScrollView, Text,
   TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -600,7 +600,8 @@ function RestTimerBar() {
 }
 
 // ─── Muscle chips ─────────────────────────────────────────────────────────────
-// PRIMARY (agonist) = blue chip; SECONDARY (synergist) = gray chip
+// PRIMARY (agonist)  = full-saturation indigo chip
+// SECONDARY (synergist) = same hue, lower saturation to signal the difference
 
 function MuscleChips({ muscles }: { muscles: SessionExerciseResponse['exercise']['muscles'] }) {
   const primary   = muscles.filter((m) => m.role === 'PRIMARY');
@@ -610,20 +611,21 @@ function MuscleChips({ muscles }: { muscles: SessionExerciseResponse['exercise']
     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
       {primary.map((m) => (
         <View key={`p-${m.muscleGroupId}`} style={{
-          backgroundColor: Colors.primaryTint, borderRadius: Radius.full,
+          backgroundColor: Colors.primary, borderRadius: Radius.full,
           paddingHorizontal: 7, paddingVertical: 2,
         }}>
-          <Text style={{ fontSize: 10, color: Colors.primary,
-            fontWeight: FontWeight.medium }}>{m.muscleGroupName}</Text>
+          <Text style={{ fontSize: 10, color: Colors.textInverse,
+            fontWeight: FontWeight.semibold }}>{m.muscleGroupName}</Text>
         </View>
       ))}
       {secondary.map((m) => (
         <View key={`s-${m.muscleGroupId}`} style={{
-          backgroundColor: Colors.surfaceSubtle, borderRadius: Radius.full,
+          backgroundColor: Colors.primaryTint, borderRadius: Radius.full,
           paddingHorizontal: 7, paddingVertical: 2,
-          borderWidth: 1, borderColor: Colors.border,
+          borderWidth: 1, borderColor: Colors.primaryLight,
         }}>
-          <Text style={{ fontSize: 10, color: Colors.textSecondary }}>{m.muscleGroupName}</Text>
+          <Text style={{ fontSize: 10, color: Colors.primaryLight,
+            fontWeight: FontWeight.medium }}>{m.muscleGroupName}</Text>
         </View>
       ))}
     </View>

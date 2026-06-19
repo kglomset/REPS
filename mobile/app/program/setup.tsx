@@ -10,7 +10,7 @@ import { Ionicons } from '@expo/vector-icons';
 import DraggableFlatList, { RenderItemParams } from 'react-native-draggable-flatlist';
 import { programsApi } from '@/services/api/programs';
 import { exercisesApi } from '@/services/api/exercises';
-import { FitnessLevel, TrainingGoal, CardioType, ExerciseResponse } from '@/types';
+import { FitnessLevel, TrainingGoal, CardioType, TrainingMethod, ExerciseResponse } from '@/types';
 import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/constants/theme';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -32,6 +32,7 @@ interface DiyExercise {
   exercise: ExerciseResponse;
   sets: number;
   reps: number;
+  method: TrainingMethod;
 }
 
 interface DiyDay {
@@ -436,7 +437,6 @@ function DiyBuilder() {
   const [programName, setProgramName]           = useState('My Program');
   const [fitnessLevel, setFitnessLevel]         = useState<FitnessLevel>('INTERMEDIATE');
   const [goal, setGoal]                         = useState<TrainingGoal>('HYPERTROPHY');
-  const [trainingMethod, setTrainingMethod]     = useState<TrainingMethod>('STRAIGHT_SETS');
   const [days, setDays]                         = useState<DiyDay[]>(
     DEFAULT_DAY_INDICES.map((idx) => ({
       name: `Day ${idx + 1}`,
@@ -481,7 +481,7 @@ function DiyBuilder() {
     setDays((prev) =>
       prev.map((d) =>
         d.dayIndex === dayIndex && !d.exercises.find((e) => e.exercise.id === ex.id)
-          ? { ...d, exercises: [...d.exercises, { exercise: ex, ...defaultSetsReps(goal) }] }
+          ? { ...d, exercises: [...d.exercises, { exercise: ex, ...defaultSetsReps(goal), method: 'STRAIGHT_SETS' }] }
           : d
       )
     );
@@ -500,7 +500,7 @@ function DiyBuilder() {
   const updateExerciseParam = (
     dayIndex: number,
     exId: number,
-    patch: Partial<Pick<DiyExercise, 'sets' | 'reps'>>
+    patch: Partial<Pick<DiyExercise, 'sets' | 'reps' | 'method'>>
   ) => {
     setDays((prev) =>
       prev.map((d) =>
@@ -653,6 +653,28 @@ function DiyBuilder() {
                       </Text>
                     </View>
                   </View>
+
+                  {/* Per-exercise training method */}
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 }}>
+                    <Text style={{ fontSize: 10, color: Colors.textMuted,
+                      fontWeight: FontWeight.medium }}>METHOD</Text>
+                    {([
+                      { value: 'STRAIGHT_SETS', label: 'Straight' },
+                      { value: 'MYOREPS',       label: 'Myo-reps' },
+                    ] as { value: TrainingMethod; label: string }[]).map(({ value, label }) => {
+                      const active = de.method === value;
+                      return (
+                        <TouchableOpacity key={value}
+                          onPress={() => updateExerciseParam(editingDay.dayIndex, de.exercise.id, { method: value })}
+                          style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: Radius.full,
+                            backgroundColor: active ? Colors.primary : Colors.surfaceMuted,
+                            borderWidth: 1, borderColor: active ? Colors.primary : Colors.border }}>
+                          <Text style={{ fontSize: 10, fontWeight: FontWeight.semibold,
+                            color: active ? Colors.textInverse : Colors.textSecondary }}>{label}</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
                 </View>
               )}
             />
@@ -744,34 +766,7 @@ function DiyBuilder() {
           ))}
         </View>
 
-        {/* Training method */}
-        <Text style={{ fontSize: FontSize.sm, color: Colors.textSecondary,
-          fontWeight: FontWeight.medium, marginBottom: 8 }}>Training Method</Text>
-        <View style={{ flexDirection: 'row', gap: 8, marginBottom: Spacing.lg }}>
-          {([
-            { value: 'STRAIGHT_SETS', label: 'Straight Sets' },
-            { value: 'MYOREPS',       label: 'Myo-Reps'      },
-          ] as { value: TrainingMethod; label: string }[]).map(({ value, label }) => (
-            <TouchableOpacity key={value} onPress={() => setTrainingMethod(value)}
-              style={{ flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: Radius.md,
-                backgroundColor: trainingMethod === value ? Colors.primary : Colors.surfaceMuted,
-                borderWidth: 1, borderColor: trainingMethod === value ? Colors.primary : Colors.border }}>
-              <Text style={{ fontSize: FontSize.xs, fontWeight: FontWeight.semibold,
-                color: trainingMethod === value ? Colors.textInverse : Colors.textSecondary }}>
-                {label}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-        {trainingMethod === 'MYOREPS' && (
-          <View style={{ backgroundColor: Colors.primaryTint, borderRadius: Radius.md,
-            padding: Spacing.sm, marginTop: -Spacing.sm, marginBottom: Spacing.md }}>
-            <Text style={{ fontSize: FontSize.xs, color: Colors.primary }}>
-              Activation set → 5 breaths → mini-sets until failure. Primary muscles 3 sets,
-              supporting 1–2.
-            </Text>
-          </View>
-        )}
+        {/* Training method is now chosen per exercise inside each day. */}
 
         {/* Training days */}
         <Text style={{ fontSize: FontSize.sm, color: Colors.textSecondary,

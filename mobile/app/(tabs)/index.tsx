@@ -2,13 +2,13 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, RefreshControl, Modal, TextInput, Alert,
-  useWindowDimensions,
+  useWindowDimensions, Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
-import { format, getISOWeek } from 'date-fns';
+import { format, getISOWeek, getISOWeekYear } from 'date-fns';
 import Svg, { Path, Defs, LinearGradient, Stop } from 'react-native-svg';
 import { programsApi } from '@/services/api/programs';
 import { workoutsApi } from '@/services/api/workouts';
@@ -76,7 +76,7 @@ export default function DashboardScreen() {
   const user         = useAuthStore((s) => s.user);
   const queryClient  = useQueryClient();
   const { width: windowWidth } = useWindowDimensions();
-  const { weightGoal, startWeight, hydrate, isHydrated } = useSettingsStore();
+  const { weightGoal, startWeight, hydrate, isHydrated, skipped, skipWorkout } = useSettingsStore();
   const [bwModalOpen, setBwModalOpen]                         = useState(false);
   const [bwInput, setBwInput]                                 = useState('');
   const [dayPickerTemplate, setDayPickerTemplate]             = useState<WorkoutTemplateResponse | null>(null);
@@ -107,18 +107,25 @@ export default function DashboardScreen() {
     onError: (e: any) => Alert.alert('Error', e.message),
   });
 
-  const scheduledIndices = new Set(program?.workoutTemplates.map((t) => t.dayIndex) ?? []);
   const today   = new Date();
   const monday  = new Date(today);
   monday.setDate(today.getDate() - ((today.getDay() + 6) % 7));
   monday.setHours(0, 0, 0, 0);
+
+  // Per-week skip: a workout cancelled "this week" disappears from the week box
+  // for the current ISO week only, then returns next week.
+  const weekKey = `${getISOWeekYear(monday)}-W${getISOWeek(monday)}`;
+  const isSkipped = (templateId: number) => !!skipped[`${weekKey}:${templateId}`];
+  const visibleTemplates = (program?.workoutTemplates ?? []).filter((t) => !isSkipped(t.id));
+
+  const scheduledIndices = new Set(visibleTemplates.map((t) => t.dayIndex));
 
   const thisWeekSessions = (sessions ?? []).filter((s) => {
     const d = new Date(s.startedAt);
     return d >= monday && s.completedAt;
   });
   const todayDayIdx   = (today.getDay() + 6) % 7;
-  const todayTemplate = program?.workoutTemplates.find((t) => t.dayIndex === todayDayIdx);
+  const todayTemplate = visibleTemplates.find((t) => t.dayIndex === todayDayIdx);
   const latestWeight  = bodyWeights?.[bodyWeights.length - 1];
   const trend         = computeWeightTrend(bodyWeights ?? []);
 
@@ -143,10 +150,15 @@ export default function DashboardScreen() {
           <TouchableOpacity
             onPress={() => router.push('/settings')}
             style={{ width: 40, height: 40, borderRadius: 20,
-              backgroundColor: Colors.primaryTint, alignItems: 'center', justifyContent: 'center' }}>
-            <Text style={{ fontWeight: FontWeight.bold, color: Colors.primary }}>
-              {user?.name?.[0]?.toUpperCase() ?? '?'}
-            </Text>
+              backgroundColor: Colors.primaryTint, alignItems: 'center', justifyContent: 'center',
+              overflow: 'hidden' }}>
+            {user?.avatarUrl ? (
+              <Image source={{ uri: user.avatarUrl }} style={{ width: 40, height: 40 }} />
+            ) : (
+              <Text style={{ fontWeight: FontWeight.bold, color: Colors.primary }}>
+                {user?.name?.[0]?.toUpperCase() ?? '?'}
+              </Text>
+            )}
           </TouchableOpacity>
         </View>
 
@@ -156,7 +168,7 @@ export default function DashboardScreen() {
             scheduledIndices={scheduledIndices}
             completedCount={thisWeekSessions.length}
             totalScheduled={scheduledIndices.size}
-            templates={program.workoutTemplates}
+            templates={visibleTemplates}
             weekStart={monday}
             onChipPress={(tmpl) => setDayPickerTemplate(tmpl)}
           />
@@ -227,6 +239,10 @@ export default function DashboardScreen() {
               })
               .catch(() => {})
               .finally(() => setDayPickerTemplate(null));
+          }}
+          onSkipThisWeek={() => {
+            skipWorkout(weekKey, dayPickerTemplate.id);
+            setDayPickerTemplate(null);
           }}
         />
       )}
@@ -373,10 +389,11 @@ function WeekStrip({ scheduledIndices, completedCount, totalScheduled, templates
 
 // ─── Day picker modal ─────────────────────────────────────────────────────────
 
-function DayPickerModal({ template, onClose, onSave }: {
+function DayPickerModal({ template, onClose, onSave, onSkipThisWeek }: {
   template: WorkoutTemplateResponse;
   onClose: () => void;
   onSave: (dayIndex: number) => void;
+  onSkipThisWeek: () => void;
 }) {
   const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
   const [selected, setSelected] = useState(template.dayIndex);
@@ -432,6 +449,21 @@ function DayPickerModal({ template, onClose, onSave }: {
                 fontWeight: FontWeight.semibold }}>Save</Text>
             </TouchableOpacity>
           </View>
+
+          {/* Cancel just this week — chip returns next week */}
+          <TouchableOpacity
+            onPress={onSkipThisWeek}
+            style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+              gap: 6, marginTop: Spacing.sm, paddingVertical: 11, borderRadius: Radius.md,
+              borderWidth: 1, borderColor: Colors.errorTint, backgroundColor: Colors.errorTint }}>
+            <Ionicons name="close-circle-outline" size={16} color={Colors.error} />
+            <Text style={{ color: Colors.error, fontWeight: FontWeight.medium, fontSize: FontSize.sm }}>
+              Cancel this week
+            </Text>
+          </TouchableOpacity>
+          <Text style={{ fontSize: 10, color: Colors.textMuted, textAlign: 'center', marginTop: 4 }}>
+            Removes it from this week only — it returns next week.
+          </Text>
         </View>
       </View>
     </Modal>
@@ -542,6 +574,18 @@ function BodyWeightCard({ latestWeight, history, trend, onLog, cardWidth, weight
               <Text style={{ fontSize: FontSize.xs, color: Colors.textMuted }}>
                 {format(new Date(latestWeight.logDate), 'MMM d')}
               </Text>
+              {weightGoal !== undefined && (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
+                  <Ionicons name="flag-outline" size={11} color={Colors.primary} />
+                  <Text style={{ fontSize: FontSize.xs, color: Colors.primary,
+                    fontWeight: FontWeight.medium }}>
+                    Goal {weightGoal}kg
+                    {Math.abs(latestWeight.weightKg - weightGoal) >= 0.1
+                      ? ` · ${Math.abs(latestWeight.weightKg - weightGoal).toFixed(1)}kg to go`
+                      : ' · reached 🎉'}
+                  </Text>
+                </View>
+              )}
             </View>
 
             {direction !== 'none' && (
