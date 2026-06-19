@@ -7,7 +7,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
-import DraggableFlatList, { RenderItemParams } from 'react-native-draggable-flatlist';
 import { programsApi } from '@/services/api/programs';
 import { exercisesApi } from '@/services/api/exercises';
 import { FitnessLevel, TrainingGoal, CardioType, TrainingMethod, ExerciseResponse } from '@/types';
@@ -589,6 +588,19 @@ function DiyBuilder({ editProgramId }: { editProgramId?: number }) {
     );
   };
 
+  const moveExercise = (dayIndex: number, idx: number, dir: -1 | 1) => {
+    setDays((prev) =>
+      prev.map((d) => {
+        if (d.dayIndex !== dayIndex) return d;
+        const arr = [...d.exercises];
+        const j = idx + dir;
+        if (j < 0 || j >= arr.length) return d;
+        [arr[idx], arr[j]] = [arr[j], arr[idx]];
+        return { ...d, exercises: arr };
+      })
+    );
+  };
+
   const filtered = (allExercises ?? []).filter((e) =>
     e.name.toLowerCase().includes(exSearch.toLowerCase())
   );
@@ -624,37 +636,43 @@ function DiyBuilder({ editProgramId }: { editProgramId?: number }) {
           </Text>
         </View>
 
-        {/* Selected exercises with drag-to-reorder + sets/reps editing */}
-        {editingDay.exercises.length > 0 && (
-          <View style={{ borderBottomWidth: 1, borderBottomColor: Colors.border, maxHeight: 320, overflow: 'hidden' }}>
-            <Text style={{ fontSize: FontSize.xs, color: Colors.textMuted,
-              fontWeight: FontWeight.medium, paddingHorizontal: Spacing.lg,
-              paddingTop: Spacing.md, paddingBottom: 6 }}>
-              SELECTED EXERCISES · hold &amp; drag to reorder
-            </Text>
-            <DraggableFlatList
-              data={editingDay.exercises}
-              keyExtractor={(de) => String(de.exercise.id)}
-              onDragEnd={({ data: newOrder }) => {
-                setDays((prev) =>
-                  prev.map((d) =>
-                    d.dayIndex === editingDay.dayIndex ? { ...d, exercises: newOrder } : d
-                  )
-                );
-              }}
-              renderItem={({ item: de, drag, isActive }: RenderItemParams<DiyExercise>) => (
-                <View style={{
+        {/* One scroll for the whole editor: selected list never overlaps the add list */}
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 40 }}
+          keyboardShouldPersistTaps="handled">
+          {/* Selected exercises */}
+          {editingDay.exercises.length > 0 && (
+            <View style={{ borderBottomWidth: 1, borderBottomColor: Colors.border }}>
+              <Text style={{ fontSize: FontSize.xs, color: Colors.textMuted,
+                fontWeight: FontWeight.medium, paddingHorizontal: Spacing.lg,
+                paddingTop: Spacing.md, paddingBottom: 6 }}>
+                SELECTED EXERCISES
+              </Text>
+              {editingDay.exercises.map((de, idx) => (
+                <View key={de.exercise.id} style={{
                   paddingHorizontal: Spacing.lg, paddingVertical: 10,
                   borderTopWidth: 1, borderTopColor: Colors.border,
-                  backgroundColor: isActive ? Colors.primaryTint : Colors.surface,
+                  backgroundColor: Colors.surface,
                 }}>
-                  {/* Exercise name + drag handle + remove */}
+                  {/* Exercise name + reorder (up/down) + remove */}
                   <View style={{ flexDirection: 'row', alignItems: 'center',
                     justifyContent: 'space-between', marginBottom: 6 }}>
-                    <TouchableOpacity onLongPress={drag} delayLongPress={150}
-                      style={{ marginRight: 8, paddingVertical: 2 }}>
-                      <Ionicons name="reorder-three-outline" size={20} color={Colors.textMuted} />
-                    </TouchableOpacity>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: 6 }}>
+                      <TouchableOpacity
+                        disabled={idx === 0}
+                        onPress={() => moveExercise(editingDay.dayIndex, idx, -1)}
+                        hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
+                        style={{ paddingHorizontal: 1, opacity: idx === 0 ? 0.25 : 1 }}>
+                        <Ionicons name="chevron-up" size={18} color={Colors.textMuted} />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        disabled={idx === editingDay.exercises.length - 1}
+                        onPress={() => moveExercise(editingDay.dayIndex, idx, 1)}
+                        hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
+                        style={{ paddingHorizontal: 1,
+                          opacity: idx === editingDay.exercises.length - 1 ? 0.25 : 1 }}>
+                        <Ionicons name="chevron-down" size={18} color={Colors.textMuted} />
+                      </TouchableOpacity>
+                    </View>
                     <View style={{ flex: 1, marginRight: Spacing.sm }}>
                       <Text style={{ fontSize: FontSize.sm, fontWeight: FontWeight.semibold,
                         color: Colors.textPrimary }}>{de.exercise.name}</Text>
@@ -749,26 +767,25 @@ function DiyBuilder({ editProgramId }: { editProgramId?: number }) {
                     })}
                   </View>
                 </View>
-              )}
-            />
-          </View>
-        )}
+              ))}
+            </View>
+          )}
 
-        {/* Exercise search */}
-        <View style={{ paddingHorizontal: Spacing.md, paddingTop: Spacing.md,
-          paddingBottom: Spacing.sm }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8,
-            backgroundColor: Colors.surfaceMuted, borderRadius: Radius.md, paddingHorizontal: 12,
-            borderWidth: 1, borderColor: Colors.border }}>
-            <Ionicons name="search" size={16} color={Colors.textMuted} />
-            <TextInput value={exSearch} onChangeText={setExSearch}
-              placeholder="Search exercises to add…" placeholderTextColor={Colors.textMuted}
-              style={{ flex: 1, paddingVertical: 10, fontSize: FontSize.md,
-                color: Colors.textPrimary }} />
+          {/* Exercise search */}
+          <View style={{ paddingHorizontal: Spacing.md, paddingTop: Spacing.md,
+            paddingBottom: Spacing.sm }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8,
+              backgroundColor: Colors.surfaceMuted, borderRadius: Radius.md, paddingHorizontal: 12,
+              borderWidth: 1, borderColor: Colors.border }}>
+              <Ionicons name="search" size={16} color={Colors.textMuted} />
+              <TextInput value={exSearch} onChangeText={setExSearch}
+                placeholder="Search exercises to add…" placeholderTextColor={Colors.textMuted}
+                style={{ flex: 1, paddingVertical: 10, fontSize: FontSize.md,
+                  color: Colors.textPrimary }} />
+            </View>
           </View>
-        </View>
 
-        <ScrollView style={{ flex: 1 }}>
+          {/* Add list */}
           {filtered.map((ex) => {
             const added = editingDay.exercises.some((e) => e.exercise.id === ex.id);
             return (
