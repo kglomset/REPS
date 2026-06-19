@@ -47,8 +47,6 @@ export default function TabLayout() {
           tabBarIcon: ({ color, size }) => <Ionicons name="trending-up" size={size} color={color} />,
         }}
       />
-      {/* home.tsx is a redirect stub — keep hidden from the tab bar */}
-      <Tabs.Screen name="home" options={{ href: null }} />
     </Tabs>
   );
 }

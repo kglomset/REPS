@@ -474,11 +474,23 @@ function DiyBuilder({ editProgramId }: { editProgramId?: number }) {
   const isEdit = editProgramId != null;
   const [initialized, setInitialized] = useState(false);
 
-  const { data: editProgram } = useQuery({
+  const { data: fetchedProgram } = useQuery({
     queryKey: ['program', editProgramId],
     queryFn: () => programsApi.get(editProgramId as number),
     enabled: isEdit,
   });
+  // The active program is already loaded with its exercises on other screens;
+  // use it as a reliable source when editing it, falling back to fetch-by-id.
+  const { data: activeProgram } = useQuery({
+    queryKey: ['activeProgram'],
+    queryFn: programsApi.getActive,
+    enabled: isEdit,
+  });
+  const editProgram = !isEdit
+    ? undefined
+    : (fetchedProgram && fetchedProgram.workoutTemplates?.length
+        ? fetchedProgram
+        : (activeProgram && activeProgram.id === editProgramId ? activeProgram : fetchedProgram));
 
   useEffect(() => {
     if (!isEdit || !editProgram || initialized) return;
