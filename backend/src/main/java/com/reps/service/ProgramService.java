@@ -1,6 +1,7 @@
 package com.reps.service;
 
 import com.reps.dto.request.CreateProgramRequest;
+import com.reps.dto.request.UpdateProgramStructureRequest;
 import com.reps.dto.response.*;
 import com.reps.entity.*;
 import com.reps.enums.FitnessLevel;
@@ -84,6 +85,63 @@ public class ProgramService {
                 .orElseThrow(() -> new NoSuchElementException("Program not found"));
         if (name != null && !name.isBlank()) target.setName(name.trim());
         programRepo.save(target);
+    }
+
+    /**
+     * Edit an existing program's structure in place. Templates are matched by id
+     * and have their exercise lists rebuilt — templates themselves are never
+     * deleted, so completed sessions that reference them stay intact.
+     */
+    @Transactional
+    public ProgramResponse updateProgramStructure(Long userId, Long programId,
+                                                  UpdateProgramStructureRequest req) {
+        TrainingProgram program = programRepo.findByIdAndUserIdWithDetails(programId, userId)
+                .orElseThrow(() -> new NoSuchElementException("Program not found"));
+
+        if (req.getName() != null && !req.getName().isBlank()) {
+            program.setName(req.getName().trim());
+        }
+
+        int defaultRest = program.getGoal() == TrainingGoal.STRENGTH ? 240 : 120;
+
+        if (req.getDays() != null) {
+            for (UpdateProgramStructureRequest.Day day : req.getDays()) {
+                if (day.getTemplateId() == null) continue;
+                WorkoutTemplate template = program.getWorkoutTemplates().stream()
+                        .filter(t -> t.getId().equals(day.getTemplateId()))
+                        .findFirst().orElse(null);
+                if (template == null) continue;
+
+                if (day.getName() != null && !day.getName().isBlank()) {
+                    template.setName(day.getName().trim());
+                }
+
+                template.getExercises().clear();
+                List<UpdateProgramStructureRequest.Ex> exs =
+                        day.getExercises() != null ? day.getExercises() : List.of();
+                int order = 0;
+                for (UpdateProgramStructureRequest.Ex ex : exs) {
+                    if (ex.getExerciseId() == null) continue;
+                    Exercise exercise = exerciseRepo.findById(ex.getExerciseId()).orElse(null);
+                    if (exercise == null) continue;
+                    int reps = ex.getReps() != null ? ex.getReps() : 10;
+                    template.getExercises().add(WorkoutTemplateExercise.builder()
+                            .template(template)
+                            .exercise(exercise)
+                            .exerciseOrder(order++)
+                            .sets(ex.getSets() != null ? ex.getSets() : 3)
+                            .repsMin(reps)
+                            .repsMax(reps)
+                            .restSeconds(defaultRest)
+                            .trainingMethod(ex.getTrainingMethod() != null
+                                    ? TrainingMethod.valueOf(ex.getTrainingMethod())
+                                    : TrainingMethod.STRAIGHT_SETS)
+                            .build());
+                }
+            }
+        }
+
+        return toResponse(programRepo.save(program));
     }
 
     @Transactional

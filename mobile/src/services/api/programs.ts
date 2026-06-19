@@ -23,4 +23,17 @@ export const programsApi = {
 
   update: (id: number, data: { name?: string }) =>
     client.patch(`/programs/${id}`, data).then((r) => r.data),
+
+  updateStructure: (
+    id: number,
+    data: {
+      name?: string;
+      days: {
+        templateId?: number;
+        name?: string;
+        exercises: { exerciseId: number; sets: number; reps: number; trainingMethod: string }[];
+      }[];
+    },
+  ) =>
+    client.patch<ProgramResponse>(`/programs/${id}/structure`, data).then((r) => r.data),
 };

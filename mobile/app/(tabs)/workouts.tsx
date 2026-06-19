@@ -6,7 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useQuery, useQueries } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
-import { format } from 'date-fns';
+import { format, startOfMonth, getDaysInMonth, addMonths, subMonths } from 'date-fns';
 import { programsApi } from '@/services/api/programs';
 import { workoutsApi } from '@/services/api/workouts';
 import { ProgramResponse, WorkoutSessionResponse } from '@/types';
@@ -24,6 +24,10 @@ export default function WorkoutsScreen() {
     queryKey: ['sessions'],
     queryFn: workoutsApi.listSessions,
   });
+
+  const eightDaysAgo = new Date();
+  eightDaysAgo.setDate(eightDaysAgo.getDate() - 8);
+  const recentSessions = (sessions ?? []).filter((s) => new Date(s.startedAt) >= eightDaysAgo);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: Colors.surfaceMuted }}>
@@ -116,22 +120,29 @@ export default function WorkoutsScreen() {
           <ProgramDetailsCard program={program} sessions={sessions ?? []} />
         )}
 
-        {/* Recent sessions */}
+        {/* Workout log — calendar to browse any past day */}
         {sessions && sessions.length > 0 && (
+          <WorkoutCalendar sessions={sessions} />
+        )}
+
+        {/* Recent sessions — last 8 days */}
+        {recentSessions.length > 0 && (
           <>
             <Text style={{ fontSize: FontSize.lg, fontWeight: FontWeight.semibold,
-              color: Colors.textPrimary, marginTop: Spacing.xl, marginBottom: Spacing.sm }}>
+              color: Colors.textPrimary, marginTop: Spacing.xl, marginBottom: 2 }}>
               Recent Sessions
             </Text>
-            {sessions.slice(0, 10).map((s) => {
+            <Text style={{ fontSize: FontSize.xs, color: Colors.textMuted, marginBottom: Spacing.sm }}>
+              Last 8 days · tap to review
+            </Text>
+            {recentSessions.map((s) => {
               const inProgress = !s.completedAt;
-              const SessionRow = inProgress ? TouchableOpacity : View;
               return (
-                <SessionRow
+                <TouchableOpacity
                   key={s.id}
-                  {...(inProgress
-                    ? { onPress: () => router.push({ pathname: '/workout/start', params: { templateId: s.templateId ?? '', sessionId: s.id } }) }
-                    : {})}
+                  onPress={() => (inProgress
+                    ? router.push({ pathname: '/workout/start', params: { templateId: s.templateId ?? '', sessionId: s.id } })
+                    : router.push({ pathname: '/workout/view', params: { sessionId: String(s.id) } }))}
                   style={{
                     backgroundColor: Colors.surface, borderRadius: Radius.lg,
                     padding: Spacing.md, marginBottom: Spacing.sm, ...Shadow.card,
@@ -148,7 +159,10 @@ export default function WorkoutsScreen() {
                     </Text>
                   </View>
                   {s.completedAt
-                    ? <Ionicons name="checkmark-circle" size={20} color={Colors.success} />
+                    ? <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                        <Ionicons name="checkmark-circle" size={20} color={Colors.success} />
+                        <Ionicons name="chevron-forward" size={16} color={Colors.textMuted} />
+                      </View>
                     : <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                         <View style={{ backgroundColor: Colors.warningTint, paddingHorizontal: 8,
                           paddingVertical: 3, borderRadius: Radius.full }}>
@@ -157,7 +171,7 @@ export default function WorkoutsScreen() {
                         <Ionicons name="chevron-forward" size={16} color={Colors.warning} />
                       </View>
                   }
-                </SessionRow>
+                </TouchableOpacity>
               );
             })}
           </>
@@ -325,6 +339,101 @@ function StatTile({ label, value, icon }: { label: string; value: string; icon: 
       <Text style={{ fontSize: FontSize.md, fontWeight: FontWeight.bold, color: Colors.textPrimary,
         marginTop: 2 }}>{value}</Text>
       <Text style={{ fontSize: 9, color: Colors.textMuted }}>{label}</Text>
+    </View>
+  );
+}
+
+// ─── Workout log calendar ─────────────────────────────────────────────────────
+
+function WorkoutCalendar({ sessions }: { sessions: WorkoutSessionResponse[] }) {
+  const [month, setMonth] = React.useState(startOfMonth(new Date()));
+
+  // Map each day -> a completed session (latest that day)
+  const byDay: Record<string, WorkoutSessionResponse> = {};
+  for (const s of sessions) {
+    if (!s.completedAt) continue;
+    const key = format(new Date(s.startedAt), 'yyyy-MM-dd');
+    const ex = byDay[key];
+    if (!ex || new Date(s.startedAt) > new Date(ex.startedAt)) byDay[key] = s;
+  }
+
+  const daysInMonth = getDaysInMonth(month);
+  const firstDow = (startOfMonth(month).getDay() + 6) % 7; // 0 = Monday
+  const cells: (Date | null)[] = [];
+  for (let i = 0; i < firstDow; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(new Date(month.getFullYear(), month.getMonth(), d));
+  while (cells.length % 7 !== 0) cells.push(null);
+
+  const today = new Date();
+  const isToday = (d: Date) => d.toDateString() === today.toDateString();
+  const WEEK = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+
+  return (
+    <View style={{ backgroundColor: Colors.surface, borderRadius: Radius.lg,
+      padding: Spacing.md, marginTop: Spacing.lg, ...Shadow.card }}>
+      {/* Header */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+        marginBottom: Spacing.sm }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <Ionicons name="calendar-outline" size={16} color={Colors.textSecondary} />
+          <Text style={{ fontSize: FontSize.sm, fontWeight: FontWeight.semibold,
+            color: Colors.textSecondary }}>Workout Log</Text>
+        </View>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+          <TouchableOpacity onPress={() => setMonth((m) => subMonths(m, 1))} style={{ padding: 4 }}>
+            <Ionicons name="chevron-back" size={18} color={Colors.textSecondary} />
+          </TouchableOpacity>
+          <Text style={{ fontSize: FontSize.sm, fontWeight: FontWeight.semibold,
+            color: Colors.textPrimary, minWidth: 112, textAlign: 'center' }}>
+            {format(month, 'MMMM yyyy')}
+          </Text>
+          <TouchableOpacity onPress={() => setMonth((m) => addMonths(m, 1))} style={{ padding: 4 }}>
+            <Ionicons name="chevron-forward" size={18} color={Colors.textSecondary} />
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Weekday labels */}
+      <View style={{ flexDirection: 'row', marginBottom: 4 }}>
+        {WEEK.map((w, i) => (
+          <Text key={i} style={{ flex: 1, textAlign: 'center', fontSize: 10,
+            color: Colors.textMuted, fontWeight: FontWeight.medium }}>{w}</Text>
+        ))}
+      </View>
+
+      {/* Day grid */}
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+        {cells.map((d, i) => {
+          if (!d) return <View key={i} style={{ width: `${100 / 7}%`, height: 40 }} />;
+          const sess = byDay[format(d, 'yyyy-MM-dd')];
+          const has = !!sess;
+          return (
+            <View key={i} style={{ width: `${100 / 7}%`, height: 40,
+              alignItems: 'center', justifyContent: 'center' }}>
+              <TouchableOpacity
+                disabled={!has}
+                onPress={() => sess && router.push({ pathname: '/workout/view', params: { sessionId: String(sess.id) } })}
+                style={{ width: 32, height: 32, borderRadius: 16,
+                  alignItems: 'center', justifyContent: 'center',
+                  backgroundColor: has ? Colors.primary : 'transparent',
+                  borderWidth: isToday(d) && !has ? 1.5 : 0, borderColor: Colors.primary }}>
+                <Text style={{ fontSize: FontSize.xs,
+                  color: has ? Colors.textInverse : isToday(d) ? Colors.primary : Colors.textPrimary,
+                  fontWeight: has || isToday(d) ? FontWeight.bold : FontWeight.regular }}>
+                  {d.getDate()}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          );
+        })}
+      </View>
+
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: Spacing.sm }}>
+        <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: Colors.primary }} />
+        <Text style={{ fontSize: 10, color: Colors.textMuted }}>
+          Days with a completed workout · tap to view
+        </Text>
+      </View>
     </View>
   );
 }

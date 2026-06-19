@@ -185,11 +185,11 @@ export default function SettingsScreen() {
       <ScrollView contentContainerStyle={{ padding: Spacing.lg, paddingBottom: 100 }}>
         {/* Back */}
         <TouchableOpacity
-          onPress={() => router.back()}
+          onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)/'))}
           style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: Spacing.lg }}
         >
           <Ionicons name="chevron-back" size={20} color={Colors.primary} />
-          <Text style={{ color: Colors.primary, fontSize: FontSize.md }}>Back</Text>
+          <Text style={{ color: Colors.primary, fontSize: FontSize.md }}>Back to Home</Text>
         </TouchableOpacity>
 
         {/* ── Profile card ──────────────────────────────────────────── */}
@@ -416,14 +416,14 @@ export default function SettingsScreen() {
                   }}>
                     <View style={{ flex: 1 }}>
                       <TouchableOpacity
-                        onPress={() => router.push('/program/setup')}
+                        onPress={() => router.push({ pathname: '/program/setup', params: { edit: String(p.id) } })}
                         style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
                       >
                         <Text style={{ fontSize: FontSize.md, color: Colors.textPrimary,
                           fontWeight: FontWeight.medium }}>{p.name}</Text>
                         <Ionicons name="create-outline" size={15} color={Colors.primary} />
                       </TouchableOpacity>
-                      <TouchableOpacity onPress={() => router.push('/program/setup')}>
+                      <TouchableOpacity onPress={() => router.push({ pathname: '/program/setup', params: { edit: String(p.id) } })}>
                         <Text style={{ fontSize: FontSize.xs, color: Colors.textSecondary }}>
                           {p.strengthDaysPerWeek}d/wk · {p.goal.toLowerCase()} · tap to edit
                         </Text>

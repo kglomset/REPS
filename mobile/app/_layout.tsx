@@ -27,6 +27,7 @@ export default function RootLayout() {
             <Stack.Screen name="(auth)" />
             <Stack.Screen name="(tabs)" />
             <Stack.Screen name="workout/start" options={{ presentation: 'modal' }} />
+            <Stack.Screen name="workout/view" />
             <Stack.Screen name="program/setup" />
             <Stack.Screen name="settings" />
           </Stack>

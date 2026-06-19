@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
   ActivityIndicator, Alert, TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import DraggableFlatList, { RenderItemParams } from 'react-native-draggable-flatlist';
@@ -38,6 +38,7 @@ interface DiyExercise {
 interface DiyDay {
   name: string;
   dayIndex: number;
+  templateId?: number;
   exercises: DiyExercise[];
 }
 
@@ -100,8 +101,10 @@ const SUGGESTED_STEPS: SuggestedStep[] = ['level', 'goal', 'method', 'days', 'ca
 // ─── Root screen: mode picker ─────────────────────────────────────────────────
 
 export default function ProgramSetupScreen() {
+  const { edit } = useLocalSearchParams<{ edit?: string }>();
   const [mode, setMode] = useState<Mode | null>(null);
 
+  if (edit) return <DiyBuilder editProgramId={Number(edit)} />;
   if (!mode) return <ModePicker onSelect={setMode} />;
   if (mode === 'suggested') return <SuggestedWizard />;
   return <DiyBuilder />;
@@ -432,7 +435,7 @@ function defaultSetsReps(goal: TrainingGoal): { sets: number; reps: number } {
     : { sets: 3, reps: 10 };
 }
 
-function DiyBuilder() {
+function DiyBuilder({ editProgramId }: { editProgramId?: number }) {
   const queryClient = useQueryClient();
   const [programName, setProgramName]           = useState('My Program');
   const [fitnessLevel, setFitnessLevel]         = useState<FitnessLevel>('INTERMEDIATE');
@@ -464,6 +467,64 @@ function DiyBuilder() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['activeProgram'] });
       router.replace('/(tabs)/');
+    },
+    onError: (e: Error) => Alert.alert('Error', e.message),
+  });
+
+  const isEdit = editProgramId != null;
+  const [initialized, setInitialized] = useState(false);
+
+  const { data: editProgram } = useQuery({
+    queryKey: ['program', editProgramId],
+    queryFn: () => programsApi.get(editProgramId as number),
+    enabled: isEdit,
+  });
+
+  useEffect(() => {
+    if (!isEdit || !editProgram || initialized) return;
+    setProgramName(editProgram.name);
+    setFitnessLevel(editProgram.fitnessLevel);
+    setGoal(editProgram.goal);
+    setDays(
+      [...editProgram.workoutTemplates]
+        .sort((a, b) => a.dayIndex - b.dayIndex)
+        .map((t) => ({
+          name: t.name,
+          dayIndex: t.dayIndex,
+          templateId: t.id,
+          exercises: t.exercises
+            .slice()
+            .sort((a, b) => a.exerciseOrder - b.exerciseOrder)
+            .map((te) => ({
+              exercise: te.exercise,
+              sets: te.sets,
+              reps: te.repsMin ?? 10,
+              method: te.trainingMethod,
+            })),
+        }))
+    );
+    setInitialized(true);
+  }, [isEdit, editProgram, initialized]);
+
+  const { mutate: saveEdit, isPending: isSaving } = useMutation({
+    mutationFn: () => programsApi.updateStructure(editProgramId as number, {
+      name: programName,
+      days: days.map((d) => ({
+        templateId: d.templateId,
+        name: d.name,
+        exercises: d.exercises.map((e) => ({
+          exerciseId: e.exercise.id,
+          sets: e.sets,
+          reps: e.reps,
+          trainingMethod: e.method,
+        })),
+      })),
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['activeProgram'] });
+      queryClient.invalidateQueries({ queryKey: ['programs'] });
+      queryClient.invalidateQueries({ queryKey: ['program', editProgramId] });
+      router.back();
     },
     onError: (e: Error) => Alert.alert('Error', e.message),
   });
@@ -736,7 +797,7 @@ function DiyBuilder() {
           <Ionicons name="chevron-back" size={24} color={Colors.textPrimary} />
         </TouchableOpacity>
         <Text style={{ fontSize: FontSize.md, fontWeight: FontWeight.semibold,
-          color: Colors.textPrimary }}>Build from Scratch</Text>
+          color: Colors.textPrimary }}>{isEdit ? 'Edit Program' : 'Build from Scratch'}</Text>
       </View>
 
       <ScrollView contentContainerStyle={{ padding: Spacing.lg, paddingBottom: 120 }}>
@@ -749,6 +810,7 @@ function DiyBuilder() {
             fontSize: FontSize.lg, color: Colors.textPrimary,
             borderWidth: 1, borderColor: Colors.border, marginBottom: Spacing.lg }} />
 
+        {!isEdit && (<>
         {/* Level */}
         <Text style={{ fontSize: FontSize.sm, color: Colors.textSecondary,
           fontWeight: FontWeight.medium, marginBottom: 8 }}>Fitness Level</Text>
@@ -787,6 +849,7 @@ function DiyBuilder() {
             );
           })}
         </View>
+          </>)}
 
         {/* Day tiles */}
         {days.map((day) => (
@@ -830,14 +893,15 @@ function DiyBuilder() {
       <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0,
         backgroundColor: Colors.surface, padding: Spacing.lg,
         borderTopWidth: 1, borderTopColor: Colors.border }}>
-        <TouchableOpacity onPress={() => create()} disabled={isPending || days.length === 0}
+        <TouchableOpacity onPress={() => (isEdit ? saveEdit() : create())}
+          disabled={isPending || isSaving || days.length === 0}
           style={{ backgroundColor: Colors.primary, borderRadius: Radius.md,
             paddingVertical: 16, alignItems: 'center',
-            opacity: isPending || days.length === 0 ? 0.6 : 1 }}>
-          {isPending
+            opacity: isPending || isSaving || days.length === 0 ? 0.6 : 1 }}>
+          {(isPending || isSaving)
             ? <ActivityIndicator color={Colors.textInverse} />
             : <Text style={{ color: Colors.textInverse, fontWeight: FontWeight.semibold,
-                fontSize: FontSize.md }}>Create Program →</Text>}
+                fontSize: FontSize.md }}>{isEdit ? 'Save Changes →' : 'Create Program →'}</Text>}
         </TouchableOpacity>
       </View>
     </SafeAreaView>

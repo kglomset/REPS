@@ -1,6 +1,7 @@
 package com.reps.controller;
 
 import com.reps.dto.request.CreateProgramRequest;
+import com.reps.dto.request.UpdateProgramStructureRequest;
 import com.reps.dto.response.ProgramResponse;
 import com.reps.security.UserPrincipal;
 import com.reps.service.ProgramService;
@@ -67,5 +68,13 @@ public class ProgramController {
                        @RequestBody Map<String, Object> body) {
         String name = body.get("name") != null ? (String) body.get("name") : null;
         programService.updateProgram(principal.getId(), id, name);
+    }
+
+    /** Edit an existing program's exercises in place (swap/add/remove, sets/reps/method). */
+    @PatchMapping("/{id}/structure")
+    public ProgramResponse updateStructure(@AuthenticationPrincipal UserPrincipal principal,
+                                           @PathVariable Long id,
+                                           @RequestBody UpdateProgramStructureRequest req) {
+        return programService.updateProgramStructure(principal.getId(), id, req);
     }
 }
