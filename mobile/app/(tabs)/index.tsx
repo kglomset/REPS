@@ -326,8 +326,6 @@ function WeekStrip({ scheduledIndices, completedCount, totalScheduled, templates
         <Text style={{ fontSize: FontSize.xs, color: Colors.textSecondary,
           fontWeight: FontWeight.medium }}>This Week</Text>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <Ionicons name="pencil-outline" size={11} color={Colors.textMuted} />
-          <Text style={{ fontSize: 10, color: Colors.textMuted }}>Tap to reschedule</Text>
           <View style={{ backgroundColor: Colors.primaryTint, borderRadius: Radius.full,
             paddingHorizontal: 8, paddingVertical: 2 }}>
             <Text style={{ fontSize: 10, color: Colors.primary,
