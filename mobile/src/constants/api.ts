@@ -21,6 +21,8 @@ export const ENDPOINTS = {
     complete: (id: number) => `/workouts/sessions/${id}/complete`,
     logSet: (sessionId: number, exerciseId: number) =>
       `/workouts/sessions/${sessionId}/exercises/${exerciseId}/sets`,
+    standalone: '/workouts/standalone',
+    standaloneItem: (id: number) => `/workouts/standalone/${id}`,
   },
   progress: {
     exercise: (id: number) => `/progress/exercises/${id}`,

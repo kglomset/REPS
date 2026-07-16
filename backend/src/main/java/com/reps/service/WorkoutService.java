@@ -1,9 +1,11 @@
 package com.reps.service;
 
+import com.reps.dto.request.CreateStandaloneRequest;
 import com.reps.dto.request.LogSetRequest;
 import com.reps.dto.request.StartSessionRequest;
 import com.reps.dto.response.*;
 import com.reps.entity.*;
+import com.reps.enums.TrainingMethod;
 import com.reps.repository.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -18,6 +20,7 @@ public class WorkoutService {
 
     private final WorkoutSessionRepository sessionRepo;
     private final TrainingProgramRepository programRepo;
+    private final WorkoutTemplateRepository templateRepo;
     private final ExerciseRepository exerciseRepo;
     private final UserRepository userRepo;
     private final ExerciseSetRepository setRepo;
@@ -26,11 +29,17 @@ public class WorkoutService {
     @Transactional
     public WorkoutSessionResponse startSession(Long userId, StartSessionRequest req) {
         User user = userRepo.getReferenceById(userId);
-        WorkoutTemplate template = programRepo.findAll().stream()
-                .flatMap(p -> p.getWorkoutTemplates().stream())
-                .filter(t -> t.getId().equals(req.getTemplateId()))
-                .findFirst()
+        WorkoutTemplate template = templateRepo.findByIdWithExercises(req.getTemplateId())
                 .orElseThrow(() -> new NoSuchElementException("Template not found"));
+
+        // Ownership: program templates resolve owner via the program;
+        // standalone templates own their user directly.
+        Long ownerId = template.getProgram() != null
+                ? template.getProgram().getUser().getId()
+                : (template.getUser() != null ? template.getUser().getId() : null);
+        if (ownerId == null || !ownerId.equals(userId)) {
+            throw new NoSuchElementException("Template not found");
+        }
 
         WorkoutSession session = WorkoutSession.builder()
                 .user(user)
@@ -49,6 +58,73 @@ public class WorkoutService {
                     .build());
         }
         return toResponse(sessionRepo.save(session));
+    }
+
+    // ── Standalone workouts ───────────────────────────────────────────────────
+
+    /**
+     * Create a standalone workout template — a session not tied to a program or
+     * any calendar day. It is started and logged like any other workout.
+     */
+    @Transactional
+    public WorkoutTemplateResponse createStandalone(Long userId, CreateStandaloneRequest req) {
+        User user = userRepo.getReferenceById(userId);
+        WorkoutTemplate template = WorkoutTemplate.builder()
+                .user(user)
+                .standalone(true)
+                .name(req.getName() != null && !req.getName().isBlank()
+                        ? req.getName().trim() : "Workout")
+                .dayIndex(null)
+                .build();
+
+        List<CreateStandaloneRequest.Ex> exs =
+                req.getExercises() != null ? req.getExercises() : List.of();
+        int order = 0;
+        for (CreateStandaloneRequest.Ex ex : exs) {
+            if (ex.getExerciseId() == null) continue;
+            Exercise exercise = exerciseRepo.findById(ex.getExerciseId()).orElse(null);
+            if (exercise == null) continue;
+            int reps = ex.getReps() != null ? ex.getReps() : 10;
+            template.getExercises().add(WorkoutTemplateExercise.builder()
+                    .template(template)
+                    .exercise(exercise)
+                    .exerciseOrder(order++)
+                    .sets(ex.getSets() != null ? ex.getSets() : 3)
+                    .repsMin(reps)
+                    .repsMax(reps)
+                    .restSeconds(120)
+                    .trainingMethod(ex.getTrainingMethod() != null
+                            ? TrainingMethod.valueOf(ex.getTrainingMethod())
+                            : TrainingMethod.STRAIGHT_SETS)
+                    .supersetGroupId(ex.getSupersetGroupId() != null
+                            && !ex.getSupersetGroupId().isBlank()
+                            ? ex.getSupersetGroupId() : null)
+                    .build());
+        }
+        return programService.templateToResponse(templateRepo.save(template));
+    }
+
+    public List<WorkoutTemplateResponse> getStandaloneTemplates(Long userId) {
+        return templateRepo.findStandaloneByUser(userId).stream()
+                .map(programService::templateToResponse)
+                .toList();
+    }
+
+    @Transactional
+    public void deleteStandalone(Long userId, Long templateId) {
+        WorkoutTemplate template = templateRepo.findByIdWithExercises(templateId)
+                .orElseThrow(() -> new NoSuchElementException("Workout not found"));
+        if (!Boolean.TRUE.equals(template.getStandalone())
+                || template.getUser() == null
+                || !template.getUser().getId().equals(userId)) {
+            throw new NoSuchElementException("Workout not found");
+        }
+        // Detach any completed sessions so their history is preserved.
+        for (WorkoutSession s : sessionRepo.findByTemplateId(templateId)) {
+            s.setTemplate(null);
+            sessionRepo.save(s);
+        }
+        templateRepo.delete(template);
     }
 
     @Transactional

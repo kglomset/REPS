@@ -1,12 +1,27 @@
 import client from './client';
 import { ENDPOINTS } from '@/constants/api';
-import { WorkoutSessionResponse, ExerciseSetResponse } from '@/types';
+import { WorkoutSessionResponse, ExerciseSetResponse, WorkoutTemplateResponse } from '@/types';
+import { BuilderExercisePayload } from './programs';
 
 export const workoutsApi = {
   startSession: (templateId: number) =>
     client
       .post<WorkoutSessionResponse>(ENDPOINTS.workouts.sessions, { templateId })
       .then((r) => r.data),
+
+  // ── Standalone workouts (not tied to a program or calendar) ──────────────
+  listStandalone: () =>
+    client
+      .get<WorkoutTemplateResponse[]>(ENDPOINTS.workouts.standalone)
+      .then((r) => r.data),
+
+  createStandalone: (data: { name: string; exercises: BuilderExercisePayload[] }) =>
+    client
+      .post<WorkoutTemplateResponse>(ENDPOINTS.workouts.standalone, data)
+      .then((r) => r.data),
+
+  deleteStandalone: (id: number) =>
+    client.delete(ENDPOINTS.workouts.standaloneItem(id)).then((r) => r.data),
 
   getSession: (id: number) =>
     client.get<WorkoutSessionResponse>(ENDPOINTS.workouts.session(id)).then((r) => r.data),

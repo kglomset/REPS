@@ -1,20 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
-  ActivityIndicator, Alert, TextInput,
+  ActivityIndicator, Alert, TextInput, Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import { programsApi } from '@/services/api/programs';
+import { workoutsApi } from '@/services/api/workouts';
 import { exercisesApi } from '@/services/api/exercises';
 import { FitnessLevel, TrainingGoal, CardioType, TrainingMethod, ExerciseResponse } from '@/types';
 import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/constants/theme';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Mode = 'suggested' | 'diy';
+type Mode = 'suggested' | 'diy' | 'standalone';
 type SuggestedStep = 'level' | 'goal' | 'method' | 'days' | 'cardio' | 'confirm';
 
 interface ProgramDraft {
@@ -32,6 +33,7 @@ interface DiyExercise {
   sets: number;
   reps: number;
   method: TrainingMethod;
+  supersetGroupId?: string | null;
 }
 
 interface DiyDay {
@@ -106,6 +108,7 @@ export default function ProgramSetupScreen() {
   if (edit) return <DiyBuilder editProgramId={Number(edit)} />;
   if (!mode) return <ModePicker onSelect={setMode} />;
   if (mode === 'suggested') return <SuggestedWizard />;
+  if (mode === 'standalone') return <StandaloneBuilder />;
   return <DiyBuilder />;
 }
 
@@ -158,7 +161,7 @@ function ModePicker({ onSelect }: { onSelect: (m: Mode) => void }) {
         </TouchableOpacity>
 
         <TouchableOpacity onPress={() => onSelect('diy')}
-          style={{ borderRadius: Radius.xl, padding: Spacing.lg,
+          style={{ borderRadius: Radius.xl, padding: Spacing.lg, marginBottom: Spacing.md,
             backgroundColor: Colors.surface, borderWidth: 2, borderColor: Colors.primary,
             ...Shadow.card }}>
           <View style={{ width: 44, height: 44, borderRadius: 22,
@@ -170,6 +173,23 @@ function ModePicker({ onSelect }: { onSelect: (m: Mode) => void }) {
             color: Colors.textPrimary }}>Build from Scratch</Text>
           <Text style={{ fontSize: FontSize.sm, color: Colors.textSecondary, marginTop: 4 }}>
             Choose your own exercises, days, and structure. Full control.
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity onPress={() => onSelect('standalone')}
+          style={{ borderRadius: Radius.xl, padding: Spacing.lg,
+            backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
+            ...Shadow.card }}>
+          <View style={{ width: 44, height: 44, borderRadius: 22,
+            backgroundColor: Colors.surfaceMuted, alignItems: 'center',
+            justifyContent: 'center', marginBottom: Spacing.md }}>
+            <Ionicons name="flash-outline" size={22} color={Colors.textSecondary} />
+          </View>
+          <Text style={{ fontSize: FontSize.xl, fontWeight: FontWeight.bold,
+            color: Colors.textPrimary }}>Standalone Session</Text>
+          <Text style={{ fontSize: FontSize.sm, color: Colors.textSecondary, marginTop: 4 }}>
+            A one-off workout — no days, no calendar. Ideal for travelling or when
+            you can't follow your program.
           </Text>
         </TouchableOpacity>
       </ScrollView>
@@ -462,9 +482,21 @@ function DiyBuilder({ editProgramId }: { editProgramId?: number }) {
       goal,
       strengthDaysPerWeek: days.length,
       cardioDaysPerWeek: 0,
+      days: days.map((d) => ({
+        name: d.name,
+        dayIndex: d.dayIndex,
+        exercises: d.exercises.map((e) => ({
+          exerciseId: e.exercise.id,
+          sets: e.sets,
+          reps: e.reps,
+          trainingMethod: e.method,
+          supersetGroupId: e.supersetGroupId ?? null,
+        })),
+      })),
     }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['activeProgram'] });
+      queryClient.invalidateQueries({ queryKey: ['programs'] });
       router.replace('/(tabs)/');
     },
     onError: (e: Error) => Alert.alert('Error', e.message),
@@ -511,6 +543,7 @@ function DiyBuilder({ editProgramId }: { editProgramId?: number }) {
               sets: te.sets,
               reps: te.repsMin ?? 10,
               method: te.trainingMethod,
+              supersetGroupId: te.supersetGroupId ?? null,
             })),
         }))
     );
@@ -528,6 +561,7 @@ function DiyBuilder({ editProgramId }: { editProgramId?: number }) {
           sets: e.sets,
           reps: e.reps,
           trainingMethod: e.method,
+          supersetGroupId: e.supersetGroupId ?? null,
         })),
       })),
     }),
@@ -674,16 +708,26 @@ function DiyBuilder({ editProgramId }: { editProgramId?: number }) {
                       </TouchableOpacity>
                     </View>
                     <View style={{ flex: 1, marginRight: Spacing.sm }}>
-                      <Text style={{ fontSize: FontSize.sm, fontWeight: FontWeight.semibold,
-                        color: Colors.textPrimary }}>{de.exercise.name}</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Text style={{ fontSize: FontSize.sm, fontWeight: FontWeight.semibold,
+                          color: Colors.textPrimary }}>{de.exercise.name}</Text>
+                        <GroupBadge items={editingDay.exercises} groupId={de.supersetGroupId} />
+                      </View>
                       <Text style={{ fontSize: 10, color: Colors.textMuted, marginTop: 1 }}>
                         {de.exercise.muscles.filter((m) => m.role === 'PRIMARY')
                           .map((m) => m.muscleGroupName).join(', ')}
                       </Text>
                     </View>
+                    <GroupControls
+                      items={editingDay.exercises}
+                      exId={de.exercise.id}
+                      onChange={(next) => setDays((prev) => prev.map((d) =>
+                        d.dayIndex === editingDay.dayIndex ? { ...d, exercises: next } : d))}
+                    />
                     <TouchableOpacity
                       onPress={() => removeExercise(editingDay.dayIndex, de.exercise.id)}
-                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      style={{ marginLeft: 4 }}>
                       <Ionicons name="close-circle-outline" size={20} color={Colors.textMuted} />
                     </TouchableOpacity>
                   </View>
@@ -1027,6 +1071,430 @@ function VolumeGuide({ fitnessLevel, currentVolume, open, onToggle }: {
         </View>
       )}
     </View>
+  );
+}
+
+// ─── Exercise grouping (superset / circle) ────────────────────────────────────
+// Two grouped exercises = a Superset; more than two = a Circle.
+
+function groupSize(items: DiyExercise[], groupId?: string | null): number {
+  if (!groupId) return 0;
+  return items.filter((e) => e.supersetGroupId === groupId).length;
+}
+
+function GroupBadge({ items, groupId }: { items: DiyExercise[]; groupId?: string | null }) {
+  const size = groupSize(items, groupId);
+  if (size < 2) return null;
+  return (
+    <View style={{ backgroundColor: Colors.primaryTint, borderRadius: Radius.full,
+      paddingHorizontal: 8, paddingVertical: 2 }}>
+      <Text style={{ fontSize: 9, color: Colors.primary, fontWeight: FontWeight.semibold,
+        textTransform: 'uppercase', letterSpacing: 0.3 }}>
+        {size === 2 ? 'Superset' : 'Circle'}
+      </Text>
+    </View>
+  );
+}
+
+function assignGroup(items: DiyExercise[], initiatorId: number, targetIds: number[]): DiyExercise[] {
+  const existing = items.find((e) => e.exercise.id === initiatorId)?.supersetGroupId;
+  const groupId = existing ?? `group-${Date.now()}`;
+  const ids = new Set<number>([initiatorId, ...targetIds]);
+  return items.map((e) => (ids.has(e.exercise.id) ? { ...e, supersetGroupId: groupId } : e));
+}
+
+function ungroup(items: DiyExercise[], exId: number): DiyExercise[] {
+  const groupId = items.find((e) => e.exercise.id === exId)?.supersetGroupId;
+  let next = items.map((e) => (e.exercise.id === exId ? { ...e, supersetGroupId: null } : e));
+  if (groupId) {
+    const remaining = next.filter((e) => e.supersetGroupId === groupId);
+    if (remaining.length === 1) {
+      next = next.map((e) => (e.supersetGroupId === groupId ? { ...e, supersetGroupId: null } : e));
+    }
+  }
+  return next;
+}
+
+/** Three-dots menu + picker to group an exercise into a superset/circle. */
+function GroupControls({ items, exId, onChange }: {
+  items: DiyExercise[];
+  exId: number;
+  onChange: (next: DiyExercise[]) => void;
+}) {
+  const [menu, setMenu] = useState(false);
+  const [picker, setPicker] = useState(false);
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+
+  const me = items.find((e) => e.exercise.id === exId);
+  const inGroup = !!me?.supersetGroupId;
+  const myGroup = me?.supersetGroupId;
+
+  const eligible = items.filter((e) => e.exercise.id !== exId
+    && (e.supersetGroupId == null || e.supersetGroupId === myGroup));
+
+  const existingPeers = myGroup
+    ? items.filter((e) => e.exercise.id !== exId && e.supersetGroupId === myGroup).length
+    : 0;
+  const resultingSize = 1 + existingPeers + selected.size;
+
+  const toggle = (id: number) => setSelected((prev) => {
+    const n = new Set(prev);
+    n.has(id) ? n.delete(id) : n.add(id);
+    return n;
+  });
+
+  return (
+    <>
+      <TouchableOpacity onPress={() => setMenu(true)}
+        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ paddingHorizontal: 2 }}>
+        <Ionicons name="ellipsis-vertical" size={18} color={Colors.textMuted} />
+      </TouchableOpacity>
+
+      {/* Bottom-sheet menu */}
+      <Modal visible={menu} transparent animationType="fade">
+        <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)',
+          justifyContent: 'flex-end' }} activeOpacity={1} onPress={() => setMenu(false)}>
+          <View style={{ backgroundColor: Colors.surface, borderTopLeftRadius: Radius.xl,
+            borderTopRightRadius: Radius.xl, padding: Spacing.md, paddingBottom: 32 }}>
+            {!inGroup && (
+              <TouchableOpacity
+                onPress={() => { setMenu(false); setSelected(new Set()); setPicker(true); }}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.md,
+                  padding: Spacing.md }}>
+                <Ionicons name="git-merge-outline" size={20} color={Colors.textPrimary} />
+                <Text style={{ fontSize: FontSize.md, color: Colors.textPrimary }}>
+                  Group with exercise…
+                </Text>
+              </TouchableOpacity>
+            )}
+            {inGroup && (
+              <>
+                <TouchableOpacity
+                  onPress={() => { setMenu(false); setSelected(new Set()); setPicker(true); }}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.md,
+                    padding: Spacing.md }}>
+                  <Ionicons name="add-circle-outline" size={20} color={Colors.textPrimary} />
+                  <Text style={{ fontSize: FontSize.md, color: Colors.textPrimary }}>
+                    Add to group…
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => { setMenu(false); onChange(ungroup(items, exId)); }}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.md,
+                    padding: Spacing.md }}>
+                  <Ionicons name="git-pull-request-outline" size={20} color={Colors.error} />
+                  <Text style={{ fontSize: FontSize.md, color: Colors.error }}>
+                    Remove from group
+                  </Text>
+                </TouchableOpacity>
+              </>
+            )}
+            <TouchableOpacity onPress={() => setMenu(false)}
+              style={{ alignItems: 'center', paddingTop: Spacing.sm }}>
+              <Text style={{ color: Colors.textSecondary, fontSize: FontSize.sm }}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Picker */}
+      <Modal visible={picker} animationType="slide" presentationStyle="pageSheet">
+        <SafeAreaView style={{ flex: 1, backgroundColor: Colors.surface }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', padding: Spacing.md,
+            borderBottomWidth: 1, borderBottomColor: Colors.border }}>
+            <TouchableOpacity onPress={() => setPicker(false)}
+              style={{ padding: 4, marginRight: Spacing.sm }}>
+              <Ionicons name="close" size={22} color={Colors.textPrimary} />
+            </TouchableOpacity>
+            <Text style={{ flex: 1, fontSize: FontSize.md, fontWeight: FontWeight.semibold,
+              color: Colors.textPrimary }}>Group with…</Text>
+            {selected.size > 0 && (
+              <TouchableOpacity
+                onPress={() => { onChange(assignGroup(items, exId, [...selected])); setPicker(false); }}
+                style={{ backgroundColor: Colors.primary, borderRadius: Radius.full,
+                  paddingHorizontal: 14, paddingVertical: 6 }}>
+                <Text style={{ color: Colors.textInverse, fontWeight: FontWeight.semibold,
+                  fontSize: FontSize.sm }}>
+                  {resultingSize <= 2 ? 'Create Superset' : 'Create Circle'}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+          <ScrollView>
+            {eligible.length === 0 && (
+              <Text style={{ padding: Spacing.lg, color: Colors.textMuted, fontSize: FontSize.sm }}>
+                Add more exercises to this workout first.
+              </Text>
+            )}
+            {eligible.map((e) => {
+              const sel = selected.has(e.exercise.id);
+              return (
+                <TouchableOpacity key={e.exercise.id} onPress={() => toggle(e.exercise.id)}
+                  style={{ flexDirection: 'row', alignItems: 'center', padding: Spacing.md,
+                    borderBottomWidth: 1, borderBottomColor: Colors.border,
+                    backgroundColor: sel ? Colors.primaryTint : 'transparent' }}>
+                  <View style={{ width: 22, height: 22, borderRadius: 11, borderWidth: 2,
+                    borderColor: sel ? Colors.primary : Colors.border,
+                    backgroundColor: sel ? Colors.primary : 'transparent',
+                    alignItems: 'center', justifyContent: 'center', marginRight: Spacing.md }}>
+                    {sel && <Ionicons name="checkmark" size={14} color={Colors.textInverse} />}
+                  </View>
+                  <Text style={{ flex: 1, fontSize: FontSize.md, color: Colors.textPrimary,
+                    fontWeight: FontWeight.medium }}>{e.exercise.name}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+    </>
+  );
+}
+
+// ─── Reusable exercise list editor (used by standalone builder) ───────────────
+
+function ExerciseRowsEditor({ items, onChange, allExercises, goal }: {
+  items: DiyExercise[];
+  onChange: (next: DiyExercise[]) => void;
+  allExercises: ExerciseResponse[];
+  goal: TrainingGoal;
+}) {
+  const [search, setSearch] = useState('');
+
+  const add = (ex: ExerciseResponse) => {
+    if (items.some((e) => e.exercise.id === ex.id)) return;
+    onChange([...items, { exercise: ex, ...defaultSetsReps(goal), method: 'STRAIGHT_SETS', supersetGroupId: null }]);
+  };
+  const remove = (exId: number) => onChange(items.filter((e) => e.exercise.id !== exId));
+  const patch = (exId: number, p: Partial<DiyExercise>) =>
+    onChange(items.map((e) => (e.exercise.id === exId ? { ...e, ...p } : e)));
+  const move = (idx: number, dir: -1 | 1) => {
+    const arr = [...items];
+    const j = idx + dir;
+    if (j < 0 || j >= arr.length) return;
+    [arr[idx], arr[j]] = [arr[j], arr[idx]];
+    onChange(arr);
+  };
+
+  const filtered = allExercises.filter((e) =>
+    e.name.toLowerCase().includes(search.toLowerCase()));
+
+  return (
+    <>
+      {items.length > 0 && (
+        <View style={{ borderBottomWidth: 1, borderBottomColor: Colors.border }}>
+          <Text style={{ fontSize: FontSize.xs, color: Colors.textMuted,
+            fontWeight: FontWeight.medium, paddingHorizontal: Spacing.lg,
+            paddingTop: Spacing.md, paddingBottom: 6 }}>SELECTED EXERCISES</Text>
+          {items.map((de, idx) => (
+            <View key={de.exercise.id} style={{ paddingHorizontal: Spacing.lg, paddingVertical: 10,
+              borderTopWidth: 1, borderTopColor: Colors.border, backgroundColor: Colors.surface }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center',
+                justifyContent: 'space-between', marginBottom: 6 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: 6 }}>
+                  <TouchableOpacity disabled={idx === 0} onPress={() => move(idx, -1)}
+                    hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
+                    style={{ paddingHorizontal: 1, opacity: idx === 0 ? 0.25 : 1 }}>
+                    <Ionicons name="chevron-up" size={18} color={Colors.textMuted} />
+                  </TouchableOpacity>
+                  <TouchableOpacity disabled={idx === items.length - 1} onPress={() => move(idx, 1)}
+                    hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
+                    style={{ paddingHorizontal: 1, opacity: idx === items.length - 1 ? 0.25 : 1 }}>
+                    <Ionicons name="chevron-down" size={18} color={Colors.textMuted} />
+                  </TouchableOpacity>
+                </View>
+                <View style={{ flex: 1, marginRight: Spacing.sm }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Text style={{ fontSize: FontSize.sm, fontWeight: FontWeight.semibold,
+                      color: Colors.textPrimary }}>{de.exercise.name}</Text>
+                    <GroupBadge items={items} groupId={de.supersetGroupId} />
+                  </View>
+                  <Text style={{ fontSize: 10, color: Colors.textMuted, marginTop: 1 }}>
+                    {de.exercise.muscles.filter((m) => m.role === 'PRIMARY')
+                      .map((m) => m.muscleGroupName).join(', ')}
+                  </Text>
+                </View>
+                <GroupControls items={items} exId={de.exercise.id} onChange={onChange} />
+                <TouchableOpacity onPress={() => remove(de.exercise.id)}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ marginLeft: 4 }}>
+                  <Ionicons name="close-circle-outline" size={20} color={Colors.textMuted} />
+                </TouchableOpacity>
+              </View>
+
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.lg }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text style={{ fontSize: 10, color: Colors.textMuted,
+                    fontWeight: FontWeight.medium }}>SETS</Text>
+                  <TouchableOpacity onPress={() => patch(de.exercise.id, { sets: Math.max(1, de.sets - 1) })}>
+                    <Ionicons name="remove-circle-outline" size={22} color={Colors.primary} />
+                  </TouchableOpacity>
+                  <Text style={{ fontSize: FontSize.md, fontWeight: FontWeight.bold,
+                    color: Colors.textPrimary, minWidth: 18, textAlign: 'center' }}>{de.sets}</Text>
+                  <TouchableOpacity onPress={() => patch(de.exercise.id, { sets: Math.min(10, de.sets + 1) })}>
+                    <Ionicons name="add-circle-outline" size={22} color={Colors.primary} />
+                  </TouchableOpacity>
+                </View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text style={{ fontSize: 10, color: Colors.textMuted,
+                    fontWeight: FontWeight.medium }}>REPS</Text>
+                  <TextInput value={String(de.reps)}
+                    onChangeText={(v) => {
+                      const n = parseInt(v, 10);
+                      if (!isNaN(n) && n > 0 && n <= 50) patch(de.exercise.id, { reps: n });
+                    }}
+                    keyboardType="number-pad"
+                    style={{ width: 44, height: 30, backgroundColor: Colors.surfaceMuted,
+                      borderRadius: Radius.sm, textAlign: 'center', fontSize: FontSize.sm,
+                      fontWeight: FontWeight.semibold, color: Colors.textPrimary,
+                      borderWidth: 1, borderColor: Colors.border }} />
+                  <Text style={{ fontSize: 10, color: Colors.textMuted }}>rec {REP_RANGE_HINT[goal]}</Text>
+                </View>
+                <View style={{ backgroundColor: Colors.primaryTint, borderRadius: Radius.full,
+                  paddingHorizontal: 10, paddingVertical: 3 }}>
+                  <Text style={{ fontSize: 10, color: Colors.primary,
+                    fontWeight: FontWeight.semibold }}>{de.sets} × {de.reps}</Text>
+                </View>
+              </View>
+
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 }}>
+                <Text style={{ fontSize: 10, color: Colors.textMuted,
+                  fontWeight: FontWeight.medium }}>METHOD</Text>
+                {([
+                  { value: 'STRAIGHT_SETS', label: 'Straight' },
+                  { value: 'MYOREPS', label: 'Myo-reps' },
+                ] as { value: TrainingMethod; label: string }[]).map(({ value, label }) => {
+                  const active = de.method === value;
+                  return (
+                    <TouchableOpacity key={value}
+                      onPress={() => patch(de.exercise.id, { method: value })}
+                      style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: Radius.full,
+                        backgroundColor: active ? Colors.primary : Colors.surfaceMuted,
+                        borderWidth: 1, borderColor: active ? Colors.primary : Colors.border }}>
+                      <Text style={{ fontSize: 10, fontWeight: FontWeight.semibold,
+                        color: active ? Colors.textInverse : Colors.textSecondary }}>{label}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+          ))}
+        </View>
+      )}
+
+      <View style={{ paddingHorizontal: Spacing.md, paddingTop: Spacing.md, paddingBottom: Spacing.sm }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8,
+          backgroundColor: Colors.surfaceMuted, borderRadius: Radius.md, paddingHorizontal: 12,
+          borderWidth: 1, borderColor: Colors.border }}>
+          <Ionicons name="search" size={16} color={Colors.textMuted} />
+          <TextInput value={search} onChangeText={setSearch}
+            placeholder="Search exercises to add…" placeholderTextColor={Colors.textMuted}
+            style={{ flex: 1, paddingVertical: 10, fontSize: FontSize.md, color: Colors.textPrimary }} />
+        </View>
+      </View>
+
+      {filtered.map((ex) => {
+        const added = items.some((e) => e.exercise.id === ex.id);
+        return (
+          <TouchableOpacity key={ex.id} onPress={() => (added ? remove(ex.id) : add(ex))}
+            style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12,
+              paddingHorizontal: Spacing.lg, borderBottomWidth: 1, borderBottomColor: Colors.border,
+              backgroundColor: added ? Colors.primaryTint : 'transparent' }}>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: FontSize.md, color: Colors.textPrimary,
+                fontWeight: FontWeight.medium }}>{ex.name}</Text>
+              <Text style={{ fontSize: FontSize.xs, color: Colors.textMuted, marginTop: 2 }}>
+                {ex.muscles.filter((m) => m.role === 'PRIMARY')
+                  .map((m) => m.muscleGroupName).join(', ')}
+              </Text>
+            </View>
+            <Ionicons name={added ? 'checkmark-circle' : 'add-circle-outline'}
+              size={22} color={added ? Colors.primary : Colors.textMuted} />
+          </TouchableOpacity>
+        );
+      })}
+    </>
+  );
+}
+
+// ─── Standalone session builder ───────────────────────────────────────────────
+
+function StandaloneBuilder() {
+  const queryClient = useQueryClient();
+  const [name, setName] = useState('Standalone Workout');
+  const [exercises, setExercises] = useState<DiyExercise[]>([]);
+
+  const { data: allExercises } = useQuery({
+    queryKey: ['exercises'],
+    queryFn: exercisesApi.list,
+  });
+
+  const { mutate: create, isPending } = useMutation({
+    mutationFn: () => workoutsApi.createStandalone({
+      name,
+      exercises: exercises.map((e) => ({
+        exerciseId: e.exercise.id,
+        sets: e.sets,
+        reps: e.reps,
+        trainingMethod: e.method,
+        supersetGroupId: e.supersetGroupId ?? null,
+      })),
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['standalone'] });
+      router.replace('/(tabs)/workouts');
+    },
+    onError: (e: Error) => Alert.alert('Error', e.message),
+  });
+
+  return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: Colors.surface }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', padding: Spacing.md,
+        borderBottomWidth: 1, borderBottomColor: Colors.border }}>
+        <TouchableOpacity onPress={() => router.back()} style={{ padding: 4, marginRight: Spacing.sm }}>
+          <Ionicons name="chevron-back" size={24} color={Colors.textPrimary} />
+        </TouchableOpacity>
+        <Text style={{ fontSize: FontSize.md, fontWeight: FontWeight.semibold,
+          color: Colors.textPrimary }}>Standalone Session</Text>
+      </View>
+
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 120 }}
+        keyboardShouldPersistTaps="handled">
+        <View style={{ padding: Spacing.lg, paddingBottom: Spacing.sm }}>
+          <Text style={{ fontSize: FontSize.sm, color: Colors.textSecondary,
+            fontWeight: FontWeight.medium, marginBottom: 6 }}>Workout Name</Text>
+          <TextInput value={name} onChangeText={setName}
+            style={{ backgroundColor: Colors.surfaceMuted, borderRadius: Radius.md,
+              paddingHorizontal: Spacing.md, paddingVertical: 12, fontSize: FontSize.lg,
+              color: Colors.textPrimary, borderWidth: 1, borderColor: Colors.border }} />
+          <Text style={{ fontSize: FontSize.xs, color: Colors.textMuted, marginTop: Spacing.sm }}>
+            A one-off workout — no training days or weekly volume. Started and logged
+            like any other session.
+          </Text>
+        </View>
+
+        <ExerciseRowsEditor
+          items={exercises}
+          onChange={setExercises}
+          allExercises={allExercises ?? []}
+          goal="HYPERTROPHY"
+        />
+      </ScrollView>
+
+      <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0,
+        backgroundColor: Colors.surface, padding: Spacing.lg,
+        borderTopWidth: 1, borderTopColor: Colors.border }}>
+        <TouchableOpacity onPress={() => create()}
+          disabled={isPending || exercises.length === 0}
+          style={{ backgroundColor: Colors.primary, borderRadius: Radius.md,
+            paddingVertical: 16, alignItems: 'center',
+            opacity: isPending || exercises.length === 0 ? 0.6 : 1 }}>
+          {isPending
+            ? <ActivityIndicator color={Colors.textInverse} />
+            : <Text style={{ color: Colors.textInverse, fontWeight: FontWeight.semibold,
+                fontSize: FontSize.md }}>Save Standalone Session →</Text>}
+        </TouchableOpacity>
+      </View>
+    </SafeAreaView>
   );
 }
 

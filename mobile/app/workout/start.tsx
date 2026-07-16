@@ -726,7 +726,7 @@ function SupersetBlock({ exercises, exStates, onUpdateState, onSetComplete,
   onOpenSupersetPicker: (exId: number) => void;
   onRemoveFromGroup: (exId: number) => void;
 }) {
-  const label = exercises.length === 2 ? 'Superset' : `${exercises.length}-set`;
+  const label = exercises.length === 2 ? 'Superset' : 'Circle';
   return (
     <View style={{ backgroundColor: Colors.surface, borderRadius: Radius.lg,
       marginBottom: Spacing.sm, ...Shadow.card, overflow: 'hidden',
@@ -1117,7 +1117,7 @@ const METHOD_LABELS: Record<TrainingMethod, string> = {
   STRAIGHT_SETS: 'Straight',
   MYOREPS:       'Myo-reps',
   SUPERSET:      'Superset',
-  TRISET:        'Tri-set',
+  TRISET:        'Circle',
   DROP_SET:      'Drop set',
 };
 
@@ -1252,6 +1252,14 @@ function SupersetPickerModal({ visible, initiatorId, exercises, exStates, onAssi
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const initiatorGroupId = exStates[initiatorId]?.supersetGroupId;
 
+  // Resulting group size = initiator + existing group peers + newly selected.
+  const existingPeers = initiatorGroupId
+    ? exercises.filter((e) => e.id !== initiatorId
+        && exStates[e.id]?.supersetGroupId === initiatorGroupId
+        && !selected.has(e.id)).length
+    : 0;
+  const resultingSize = 1 + existingPeers + selected.size;
+
   const eligible = exercises.filter(
     (e) => e.id !== initiatorId &&
       (exStates[e.id]?.supersetGroupId == null ||
@@ -1283,7 +1291,7 @@ function SupersetPickerModal({ visible, initiatorId, exercises, exStates, onAssi
                 paddingHorizontal: 14, paddingVertical: 6 }}>
               <Text style={{ color: Colors.textInverse, fontWeight: FontWeight.semibold,
                 fontSize: FontSize.sm }}>
-                {selected.size === 1 ? 'Create Superset' : 'Create Tri-set'}
+                {resultingSize <= 2 ? 'Create Superset' : 'Create Circle'}
               </Text>
             </TouchableOpacity>
           )}

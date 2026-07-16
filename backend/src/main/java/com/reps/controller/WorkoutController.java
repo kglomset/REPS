@@ -1,9 +1,11 @@
 package com.reps.controller;
 
+import com.reps.dto.request.CreateStandaloneRequest;
 import com.reps.dto.request.LogSetRequest;
 import com.reps.dto.request.StartSessionRequest;
 import com.reps.dto.response.ExerciseSetResponse;
 import com.reps.dto.response.WorkoutSessionResponse;
+import com.reps.dto.response.WorkoutTemplateResponse;
 import com.reps.security.UserPrincipal;
 import com.reps.service.WorkoutService;
 import jakarta.validation.Valid;
@@ -32,6 +34,29 @@ public class WorkoutController {
     @GetMapping("/sessions")
     public List<WorkoutSessionResponse> list(@AuthenticationPrincipal UserPrincipal principal) {
         return workoutService.getUserSessions(principal.getId());
+    }
+
+    // ── Standalone workouts (not part of a program / calendar) ────────────────
+
+    @PostMapping("/standalone")
+    @ResponseStatus(HttpStatus.CREATED)
+    public WorkoutTemplateResponse createStandalone(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @Valid @RequestBody CreateStandaloneRequest req) {
+        return workoutService.createStandalone(principal.getId(), req);
+    }
+
+    @GetMapping("/standalone")
+    public List<WorkoutTemplateResponse> listStandalone(
+            @AuthenticationPrincipal UserPrincipal principal) {
+        return workoutService.getStandaloneTemplates(principal.getId());
+    }
+
+    @DeleteMapping("/standalone/{templateId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteStandalone(@AuthenticationPrincipal UserPrincipal principal,
+                                 @PathVariable Long templateId) {
+        workoutService.deleteStandalone(principal.getId(), templateId);
     }
 
     @GetMapping("/sessions/{id}")

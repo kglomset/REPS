@@ -2,6 +2,23 @@ import client from './client';
 import { ENDPOINTS } from '@/constants/api';
 import { ProgramResponse, CreateProgramForm } from '@/types';
 
+export interface BuilderExercisePayload {
+  exerciseId: number;
+  sets: number;
+  reps: number;
+  trainingMethod: string;
+  supersetGroupId?: string | null;
+}
+
+export interface CreateProgramPayload extends CreateProgramForm {
+  /** Optional custom-built structure (Build from Scratch). */
+  days?: {
+    name?: string;
+    dayIndex?: number;
+    exercises: BuilderExercisePayload[];
+  }[];
+}
+
 export const programsApi = {
   list: () =>
     client.get<ProgramResponse[]>(ENDPOINTS.programs.list).then((r) => r.data),
@@ -12,7 +29,7 @@ export const programsApi = {
   get: (id: number) =>
     client.get<ProgramResponse>(ENDPOINTS.programs.get(id)).then((r) => r.data),
 
-  create: (data: CreateProgramForm) =>
+  create: (data: CreateProgramPayload) =>
     client.post<ProgramResponse>(ENDPOINTS.programs.create, data).then((r) => r.data),
 
   activate: (id: number) =>
@@ -31,7 +48,13 @@ export const programsApi = {
       days: {
         templateId?: number;
         name?: string;
-        exercises: { exerciseId: number; sets: number; reps: number; trainingMethod: string }[];
+        exercises: {
+          exerciseId: number;
+          sets: number;
+          reps: number;
+          trainingMethod: string;
+          supersetGroupId?: string | null;
+        }[];
       }[];
     },
   ) =>

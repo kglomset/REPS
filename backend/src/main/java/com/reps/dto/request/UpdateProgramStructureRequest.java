@@ -27,5 +27,6 @@ public class UpdateProgramStructureRequest {
         private Integer sets;
         private Integer reps;
         private String trainingMethod;
+        private String supersetGroupId;
     }
 }

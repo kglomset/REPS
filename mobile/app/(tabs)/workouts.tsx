@@ -1,23 +1,30 @@
 import React from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity, RefreshControl,
+  View, Text, ScrollView, TouchableOpacity, RefreshControl, Switch, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { useQuery, useQueries } from '@tanstack/react-query';
+import { useQuery, useQueries, useQueryClient, useMutation } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import { format, startOfMonth, getDaysInMonth, addMonths, subMonths } from 'date-fns';
 import { programsApi } from '@/services/api/programs';
 import { workoutsApi } from '@/services/api/workouts';
-import { ProgramResponse, WorkoutSessionResponse } from '@/types';
+import { ProgramResponse, WorkoutSessionResponse, WorkoutTemplateResponse } from '@/types';
 import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/constants/theme';
 
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 export default function WorkoutsScreen() {
+  const queryClient = useQueryClient();
+
   const { data: program, isLoading, refetch } = useQuery({
     queryKey: ['activeProgram'],
     queryFn: programsApi.getActive,
+  });
+
+  const { data: allPrograms, refetch: refetchPrograms } = useQuery({
+    queryKey: ['programs'],
+    queryFn: programsApi.list,
   });
 
   const { data: sessions } = useQuery({
@@ -25,14 +32,59 @@ export default function WorkoutsScreen() {
     queryFn: workoutsApi.listSessions,
   });
 
+  const { data: standalones } = useQuery({
+    queryKey: ['standalone'],
+    queryFn: workoutsApi.listStandalone,
+  });
+
   const eightDaysAgo = new Date();
   eightDaysAgo.setDate(eightDaysAgo.getDate() - 8);
   const recentSessions = (sessions ?? []).filter((s) => new Date(s.startedAt) >= eightDaysAgo);
 
+  const invalidatePrograms = () => {
+    queryClient.invalidateQueries({ queryKey: ['activeProgram'] });
+    queryClient.invalidateQueries({ queryKey: ['programs'] });
+  };
+
+  const { mutate: activate } = useMutation({
+    mutationFn: (id: number) => programsApi.activate(id),
+    onSuccess: invalidatePrograms,
+    onError: (e: Error) => Alert.alert('Error', e.message),
+  });
+  const { mutate: deactivate } = useMutation({
+    mutationFn: (id: number) => programsApi.deactivate(id),
+    onSuccess: invalidatePrograms,
+    onError: (e: Error) => Alert.alert('Error', e.message),
+  });
+
+  const toggleProgram = (p: ProgramResponse) => {
+    if (p.active) deactivate(p.id);
+    else activate(p.id); // backend deactivates the others (single active program)
+  };
+
+  const { mutate: removeStandalone } = useMutation({
+    mutationFn: (id: number) => workoutsApi.deleteStandalone(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['standalone'] }),
+    onError: (e: Error) => Alert.alert('Error', e.message),
+  });
+
+  const confirmDeleteStandalone = (t: WorkoutTemplateResponse) => {
+    Alert.alert('Delete workout', `Remove "${t.name}" from standalone sessions? Completed sessions are kept.`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: () => removeStandalone(t.id) },
+    ]);
+  };
+
+  const programs = allPrograms ?? [];
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: Colors.surfaceMuted }}>
       <ScrollView contentContainerStyle={{ padding: Spacing.lg, paddingBottom: 100 }}
-        refreshControl={<RefreshControl refreshing={isLoading} onRefresh={refetch} />}>
+        refreshControl={<RefreshControl refreshing={isLoading} onRefresh={() => {
+          refetch(); refetchPrograms();
+          queryClient.invalidateQueries({ queryKey: ['sessions'] });
+          queryClient.invalidateQueries({ queryKey: ['standalone'] });
+        }} />}>
 
         <View style={{ flexDirection: 'row', justifyContent: 'space-between',
           alignItems: 'center', marginBottom: Spacing.lg }}>
@@ -47,6 +99,38 @@ export default function WorkoutsScreen() {
               fontWeight: FontWeight.medium }}>New Program</Text>
           </TouchableOpacity>
         </View>
+
+        {/* Programs list with active/inactive toggles */}
+        {programs.length > 0 && (
+          <View style={{ marginBottom: Spacing.lg }}>
+            <Text style={{ fontSize: FontSize.sm, fontWeight: FontWeight.semibold,
+              color: Colors.textSecondary, marginBottom: Spacing.sm }}>
+              My Programs
+            </Text>
+            {programs.map((p) => (
+              <View key={p.id} style={{ flexDirection: 'row', alignItems: 'center',
+                backgroundColor: Colors.surface, borderRadius: Radius.lg,
+                padding: Spacing.md, marginBottom: Spacing.sm, ...Shadow.card,
+                borderWidth: p.active ? 1 : 0, borderColor: Colors.success }}>
+                <TouchableOpacity style={{ flex: 1 }}
+                  onPress={() => router.push({ pathname: '/program/setup', params: { edit: String(p.id) } })}>
+                  <Text style={{ fontSize: FontSize.md, fontWeight: FontWeight.semibold,
+                    color: Colors.textPrimary }}>{p.name}</Text>
+                  <Text style={{ fontSize: FontSize.xs, color: Colors.textSecondary, marginTop: 2 }}>
+                    {p.strengthDaysPerWeek}× / week · {p.fitnessLevel.charAt(0)
+                      + p.fitnessLevel.slice(1).toLowerCase()}
+                    {p.active ? ' · Active' : ''}
+                  </Text>
+                </TouchableOpacity>
+                <Switch
+                  value={p.active}
+                  onValueChange={() => toggleProgram(p)}
+                  trackColor={{ false: Colors.border, true: Colors.success }}
+                />
+              </View>
+            ))}
+          </View>
+        )}
 
         {/* Active program schedule */}
         {program ? (
@@ -96,6 +180,14 @@ export default function WorkoutsScreen() {
               </TouchableOpacity>
             ))}
           </>
+        ) : programs.length > 0 ? (
+          <View style={{ alignItems: 'center', paddingVertical: Spacing.xl }}>
+            <Ionicons name="power-outline" size={36} color={Colors.textMuted} />
+            <Text style={{ fontSize: FontSize.md, color: Colors.textSecondary, marginTop: Spacing.sm,
+              textAlign: 'center' }}>
+              No program active. Toggle one on above to see its schedule.
+            </Text>
+          </View>
         ) : (
           <View style={{ alignItems: 'center', paddingVertical: Spacing.xxl }}>
             <Ionicons name="barbell-outline" size={48} color={Colors.textMuted} />
@@ -123,6 +215,45 @@ export default function WorkoutsScreen() {
         {/* Workout log — calendar to browse any past day */}
         {sessions && sessions.length > 0 && (
           <WorkoutCalendar sessions={sessions} />
+        )}
+
+        {/* Standalone sessions — not tied to a program or calendar day */}
+        {standalones && standalones.length > 0 && (
+          <>
+            <Text style={{ fontSize: FontSize.lg, fontWeight: FontWeight.semibold,
+              color: Colors.textPrimary, marginTop: Spacing.xl, marginBottom: 2 }}>
+              Standalone Sessions
+            </Text>
+            <Text style={{ fontSize: FontSize.xs, color: Colors.textMuted, marginBottom: Spacing.sm }}>
+              One-off workouts · tap to start
+            </Text>
+            {standalones.map((t) => {
+              const totalSets = t.exercises.reduce((acc, e) => acc + e.sets, 0);
+              return (
+                <TouchableOpacity
+                  key={t.id}
+                  onPress={() => router.push({ pathname: '/workout/start', params: { templateId: String(t.id) } })}
+                  onLongPress={() => confirmDeleteStandalone(t)}
+                  style={{ backgroundColor: Colors.surface, borderRadius: Radius.lg,
+                    padding: Spacing.md, marginBottom: Spacing.sm, ...Shadow.card,
+                    flexDirection: 'row', alignItems: 'center' }}>
+                  <View style={{ width: 44, height: 44, borderRadius: Radius.md,
+                    backgroundColor: Colors.primaryTint, alignItems: 'center',
+                    justifyContent: 'center', marginRight: Spacing.md }}>
+                    <Ionicons name="flash-outline" size={20} color={Colors.primary} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontWeight: FontWeight.semibold, color: Colors.textPrimary,
+                      fontSize: FontSize.md }}>{t.name}</Text>
+                    <Text style={{ fontSize: FontSize.sm, color: Colors.textSecondary, marginTop: 2 }}>
+                      {t.exercises.length} exercises · {totalSets} sets
+                    </Text>
+                  </View>
+                  <Ionicons name="play-circle" size={22} color={Colors.primary} />
+                </TouchableOpacity>
+              );
+            })}
+          </>
         )}
 
         {/* Recent sessions — last 8 days */}

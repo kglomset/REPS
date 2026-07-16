@@ -51,8 +51,59 @@ public class ProgramService {
                 .active(true)
                 .build();
 
-        generateWorkoutTemplates(program, req);
+        if (req.getDays() != null && !req.getDays().isEmpty()) {
+            buildCustomTemplates(program, req);
+        } else {
+            generateWorkoutTemplates(program, req);
+        }
         return toResponse(programRepo.save(program));
+    }
+
+    /**
+     * Builds templates directly from a user-supplied structure (Build from
+     * Scratch), preserving each exercise's sets/reps/method and superset group.
+     */
+    private void buildCustomTemplates(TrainingProgram program, CreateProgramRequest req) {
+        int defaultRest = program.getGoal() == TrainingGoal.STRENGTH ? 240 : 120;
+        List<WorkoutTemplate> templates = new ArrayList<>();
+        int fallbackDay = 0;
+
+        for (CreateProgramRequest.Day day : req.getDays()) {
+            WorkoutTemplate template = WorkoutTemplate.builder()
+                    .program(program)
+                    .name(day.getName() != null && !day.getName().isBlank()
+                            ? day.getName().trim() : "Day " + (fallbackDay + 1))
+                    .dayIndex(day.getDayIndex() != null ? day.getDayIndex() : fallbackDay)
+                    .build();
+            fallbackDay++;
+
+            List<CreateProgramRequest.Ex> exs =
+                    day.getExercises() != null ? day.getExercises() : List.of();
+            int order = 0;
+            for (CreateProgramRequest.Ex ex : exs) {
+                if (ex.getExerciseId() == null) continue;
+                Exercise exercise = exerciseRepo.findById(ex.getExerciseId()).orElse(null);
+                if (exercise == null) continue;
+                int reps = ex.getReps() != null ? ex.getReps() : 10;
+                template.getExercises().add(WorkoutTemplateExercise.builder()
+                        .template(template)
+                        .exercise(exercise)
+                        .exerciseOrder(order++)
+                        .sets(ex.getSets() != null ? ex.getSets() : 3)
+                        .repsMin(reps)
+                        .repsMax(reps)
+                        .restSeconds(defaultRest)
+                        .trainingMethod(ex.getTrainingMethod() != null
+                                ? TrainingMethod.valueOf(ex.getTrainingMethod())
+                                : TrainingMethod.STRAIGHT_SETS)
+                        .supersetGroupId(ex.getSupersetGroupId() != null
+                                && !ex.getSupersetGroupId().isBlank()
+                                ? ex.getSupersetGroupId() : null)
+                        .build());
+            }
+            templates.add(template);
+        }
+        program.setWorkoutTemplates(templates);
     }
 
     public List<ProgramResponse> getUserPrograms(Long userId) {
@@ -136,6 +187,9 @@ public class ProgramService {
                             .trainingMethod(ex.getTrainingMethod() != null
                                     ? TrainingMethod.valueOf(ex.getTrainingMethod())
                                     : TrainingMethod.STRAIGHT_SETS)
+                            .supersetGroupId(ex.getSupersetGroupId() != null
+                                    && !ex.getSupersetGroupId().isBlank()
+                                    ? ex.getSupersetGroupId() : null)
                             .build());
                 }
             }

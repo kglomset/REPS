@@ -19,6 +19,8 @@ public interface WorkoutSessionRepository extends JpaRepository<WorkoutSession, 
 
     List<WorkoutSession> findByUserIdAndStartedAtBetween(Long userId, Instant from, Instant to);
 
+    List<WorkoutSession> findByTemplateId(Long templateId);
+
     @Query("SELECT s FROM WorkoutSession s WHERE s.user.id = :userId AND s.template.id = :templateId " +
            "AND s.completedAt IS NOT NULL ORDER BY s.startedAt DESC")
     List<WorkoutSession> findCompletedByUserAndTemplate(Long userId, Long templateId);
