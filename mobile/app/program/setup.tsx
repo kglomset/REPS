@@ -16,13 +16,12 @@ import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/constan
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type Mode = 'suggested' | 'diy' | 'standalone';
-type SuggestedStep = 'level' | 'goal' | 'method' | 'days' | 'cardio' | 'confirm';
+type SuggestedStep = 'level' | 'goal' | 'days' | 'cardio' | 'confirm';
 
 interface ProgramDraft {
   name: string;
   fitnessLevel: FitnessLevel;
   goal: TrainingGoal;
-  trainingMethod: TrainingMethod;
   strengthDaysPerWeek: number;
   cardioDaysPerWeek: number;
   cardioType?: CardioType;
@@ -97,7 +96,7 @@ const SPLIT_NAMES: Record<number, string> = {
   6: 'Push A / Pull A / Legs A / Push B / Pull B / Legs B',
 };
 
-const SUGGESTED_STEPS: SuggestedStep[] = ['level', 'goal', 'method', 'days', 'cardio', 'confirm'];
+const SUGGESTED_STEPS: SuggestedStep[] = ['level', 'goal', 'days', 'cardio', 'confirm'];
 
 // ─── Root screen: mode picker ─────────────────────────────────────────────────
 
@@ -206,7 +205,6 @@ function SuggestedWizard() {
     name: 'My Training Program',
     fitnessLevel: 'INTERMEDIATE',
     goal: 'HYPERTROPHY',
-    trainingMethod: 'STRAIGHT_SETS',
     strengthDaysPerWeek: 4,
     cardioDaysPerWeek: 0,
   });
@@ -277,40 +275,6 @@ function SuggestedWizard() {
               title="Strength"
               subtitle="3–6 reps · 4–5 sets · 3–5 min rest"
               icon="barbell-outline" />
-          </StepContainer>
-        )}
-
-        {step === 'method' && (
-          <StepContainer title="Training method"
-            subtitle="Controls how sets are structured for each exercise.">
-            <OptionCard
-              selected={draft.trainingMethod === 'STRAIGHT_SETS'}
-              onPress={() => setDraft((d) => ({ ...d, trainingMethod: 'STRAIGHT_SETS' }))}
-              title="Straight Sets"
-              subtitle="Classic approach: complete all sets of one exercise before moving to the next. Best for beginners and strength focus."
-              icon="layers-outline"
-            />
-            <OptionCard
-              selected={draft.trainingMethod === 'MYOREPS'}
-              onPress={() => setDraft((d) => ({ ...d, trainingMethod: 'MYOREPS' }))}
-              title="Myo-Reps"
-              subtitle="Activation set + short-rest mini-sets. Maximises effective reps per unit of time. Great for hypertrophy with less total volume."
-              icon="flash-outline"
-            />
-            {draft.trainingMethod === 'MYOREPS' && (
-              <View style={{ backgroundColor: Colors.primaryTint, borderRadius: Radius.lg,
-                padding: Spacing.md, marginTop: Spacing.sm }}>
-                <Text style={{ fontSize: FontSize.xs, fontWeight: FontWeight.semibold,
-                  color: Colors.primary, marginBottom: 4 }}>How myo-reps work</Text>
-                <Text style={{ fontSize: FontSize.xs, color: Colors.primaryDark, lineHeight: 18 }}>
-                  1. Activation set — push to near failure (e.g. 12–15 reps){'\n'}
-                  2. Rest 5 breaths{'\n'}
-                  3. Mini-sets of ~3–5 reps until you can't match the rep count{'\n'}
-                  {'\n'}
-                  Primary muscles get 3 sets; supporting muscles get 1–2.
-                </Text>
-              </View>
-            )}
           </StepContainer>
         )}
 
@@ -403,7 +367,6 @@ function SuggestedWizard() {
             />
             <SummaryRow label="Level" value={draft.fitnessLevel.charAt(0) + draft.fitnessLevel.slice(1).toLowerCase()} />
             <SummaryRow label="Goal" value={draft.goal === 'HYPERTROPHY' ? 'Muscle Growth' : 'Strength'} />
-            <SummaryRow label="Method" value={draft.trainingMethod === 'MYOREPS' ? 'Myo-Reps' : 'Straight Sets'} />
             <SummaryRow label="Strength" value={`${draft.strengthDaysPerWeek}× / week`} />
             {draft.cardioDaysPerWeek > 0 && (
               <SummaryRow label="Cardio" value={`${draft.cardioDaysPerWeek}× ${draft.cardioType ?? ''}`} />

@@ -386,6 +386,21 @@ export default function SettingsScreen() {
               />
             </View>
           </View>
+
+          {/* Explicit save — onBlur alone is unreliable (especially on web) */}
+          <TouchableOpacity
+            onPress={() => {
+              const g  = parseFloat(goalInput);
+              const st = parseFloat(startInput);
+              setWeightGoal(!isNaN(g)  && g  > 0 ? g  : undefined);
+              setStartWeight(!isNaN(st) && st > 0 ? st : undefined);
+            }}
+            style={{ backgroundColor: Colors.primary, borderRadius: Radius.md,
+              paddingVertical: 12, alignItems: 'center', marginBottom: Spacing.sm }}>
+            <Text style={{ color: Colors.textInverse, fontWeight: FontWeight.semibold,
+              fontSize: FontSize.sm }}>Update Goal</Text>
+          </TouchableOpacity>
+
           {weightGoal !== undefined && startWeight !== undefined && (
             <View style={{ backgroundColor: Colors.primaryTint, borderRadius: Radius.md,
               padding: Spacing.sm }}>
