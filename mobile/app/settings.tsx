@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
-  Alert, Platform, Image, Modal,
+  Alert, Platform, Image, Modal, Switch,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -430,38 +430,20 @@ export default function SettingsScreen() {
                       </TouchableOpacity>
                     </View>
 
-                    {p.active ? (
-                      <TouchableOpacity
-                        onPress={() =>
-                          Alert.alert('Deactivate program',
-                            `Deactivate "${p.name}"? You won't have an active program.`,
-                            [
-                              { text: 'Cancel', style: 'cancel' },
-                              { text: 'Deactivate', style: 'destructive',
-                                onPress: () => deactivateProgram(p.id) },
-                            ])
-                        }
-                        style={{ backgroundColor: Colors.successTint, borderRadius: Radius.full,
-                          paddingHorizontal: 10, paddingVertical: 4 }}>
-                        <Text style={{ fontSize: FontSize.xs, color: Colors.success,
-                          fontWeight: FontWeight.semibold }}>Active ✓</Text>
-                      </TouchableOpacity>
-                    ) : (
-                      <TouchableOpacity
-                        onPress={() =>
-                          Alert.alert('Activate program',
-                            `Switch to "${p.name}"? This will deactivate your current program.`,
-                            [
-                              { text: 'Cancel', style: 'cancel' },
-                              { text: 'Activate', onPress: () => activateProgram(p.id) },
-                            ])
-                        }
-                        style={{ backgroundColor: Colors.primaryTint, borderRadius: Radius.full,
-                          paddingHorizontal: 10, paddingVertical: 4 }}>
-                        <Text style={{ fontSize: FontSize.xs, color: Colors.primary,
-                          fontWeight: FontWeight.semibold }}>Activate</Text>
-                      </TouchableOpacity>
-                    )}
+                    {/* Active/inactive toggle — activating deactivates the others
+                        (single-active-program rule enforced by the backend) */}
+                    <View style={{ alignItems: 'center', gap: 2 }}>
+                      <Switch
+                        value={p.active}
+                        onValueChange={() =>
+                          p.active ? deactivateProgram(p.id) : activateProgram(p.id)}
+                        trackColor={{ false: Colors.border, true: Colors.success }}
+                      />
+                      {p.active && (
+                        <Text style={{ fontSize: 10, color: Colors.success,
+                          fontWeight: FontWeight.semibold }}>Active</Text>
+                      )}
+                    </View>
                   </View>
                 </View>
               ))}

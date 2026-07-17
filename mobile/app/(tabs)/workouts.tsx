@@ -1,6 +1,6 @@
 import React from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity, RefreshControl, Switch, Alert,
+  View, Text, ScrollView, TouchableOpacity, RefreshControl, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -42,27 +42,6 @@ export default function WorkoutsScreen() {
   eightDaysAgo.setDate(eightDaysAgo.getDate() - 8);
   const recentSessions = (sessions ?? []).filter((s) => new Date(s.startedAt) >= eightDaysAgo);
 
-  const invalidatePrograms = () => {
-    queryClient.invalidateQueries({ queryKey: ['activeProgram'] });
-    queryClient.invalidateQueries({ queryKey: ['programs'] });
-  };
-
-  const { mutate: activate } = useMutation({
-    mutationFn: (id: number) => programsApi.activate(id),
-    onSuccess: invalidatePrograms,
-    onError: (e: Error) => Alert.alert('Error', e.message),
-  });
-  const { mutate: deactivate } = useMutation({
-    mutationFn: (id: number) => programsApi.deactivate(id),
-    onSuccess: invalidatePrograms,
-    onError: (e: Error) => Alert.alert('Error', e.message),
-  });
-
-  const toggleProgram = (p: ProgramResponse) => {
-    if (p.active) deactivate(p.id);
-    else activate(p.id); // backend deactivates the others (single active program)
-  };
-
   const { mutate: removeStandalone } = useMutation({
     mutationFn: (id: number) => workoutsApi.deleteStandalone(id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['standalone'] }),
@@ -75,8 +54,6 @@ export default function WorkoutsScreen() {
       { text: 'Delete', style: 'destructive', onPress: () => removeStandalone(t.id) },
     ]);
   };
-
-  const programs = allPrograms ?? [];
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: Colors.surfaceMuted }}>
@@ -100,38 +77,6 @@ export default function WorkoutsScreen() {
               fontWeight: FontWeight.medium }}>New Program</Text>
           </TouchableOpacity>
         </View>
-
-        {/* Programs list with active/inactive toggles */}
-        {programs.length > 0 && (
-          <View style={{ marginBottom: Spacing.lg }}>
-            <Text style={{ fontSize: FontSize.sm, fontWeight: FontWeight.semibold,
-              color: Colors.textSecondary, marginBottom: Spacing.sm }}>
-              My Programs
-            </Text>
-            {programs.map((p) => (
-              <View key={p.id} style={{ flexDirection: 'row', alignItems: 'center',
-                backgroundColor: Colors.surface, borderRadius: Radius.lg,
-                padding: Spacing.md, marginBottom: Spacing.sm, ...Shadow.card,
-                borderWidth: p.active ? 1 : 0, borderColor: Colors.success }}>
-                <TouchableOpacity style={{ flex: 1 }}
-                  onPress={() => router.push({ pathname: '/program/setup', params: { edit: String(p.id) } })}>
-                  <Text style={{ fontSize: FontSize.md, fontWeight: FontWeight.semibold,
-                    color: Colors.textPrimary }}>{p.name}</Text>
-                  <Text style={{ fontSize: FontSize.xs, color: Colors.textSecondary, marginTop: 2 }}>
-                    {p.strengthDaysPerWeek}× / week · {p.fitnessLevel.charAt(0)
-                      + p.fitnessLevel.slice(1).toLowerCase()}
-                    {p.active ? ' · Active' : ''}
-                  </Text>
-                </TouchableOpacity>
-                <Switch
-                  value={p.active}
-                  onValueChange={() => toggleProgram(p)}
-                  trackColor={{ false: Colors.border, true: Colors.success }}
-                />
-              </View>
-            ))}
-          </View>
-        )}
 
         {/* Active program schedule */}
         {program ? (
@@ -181,12 +126,12 @@ export default function WorkoutsScreen() {
               </TouchableOpacity>
             ))}
           </>
-        ) : programs.length > 0 ? (
+        ) : (allPrograms ?? []).length > 0 ? (
           <View style={{ alignItems: 'center', paddingVertical: Spacing.xl }}>
             <Ionicons name="power-outline" size={36} color={Colors.textMuted} />
             <Text style={{ fontSize: FontSize.md, color: Colors.textSecondary, marginTop: Spacing.sm,
               textAlign: 'center' }}>
-              No program active. Toggle one on above to see its schedule.
+              No program active. Activate one from Profile → Programs to see its schedule.
             </Text>
           </View>
         ) : (

@@ -200,13 +200,24 @@ public class ProgramService {
 
     @Transactional
     public ProgramResponse activateProgram(Long userId, Long programId) {
-        // Deactivate all programs for this user
-        programRepo.findByUserId(userId).forEach(p -> {
-            if (p.getActive()) { p.setActive(false); programRepo.save(p); }
-        });
-        // Activate the target program
         TrainingProgram target = programRepo.findByIdAndUserIdWithDetails(programId, userId)
                 .orElseThrow(() -> new NoSuchElementException("Program not found"));
+
+        // Already active — nothing to do (idempotent toggle)
+        if (Boolean.TRUE.equals(target.getActive())) {
+            return toResponse(target);
+        }
+
+        // Single-active-program rule: deactivate every other program first and
+        // flush, so the deactivations hit the DB before the activation does.
+        programRepo.findByUserId(userId).forEach(p -> {
+            if (!p.getId().equals(programId) && Boolean.TRUE.equals(p.getActive())) {
+                p.setActive(false);
+                programRepo.save(p);
+            }
+        });
+        programRepo.flush();
+
         target.setActive(true);
         return toResponse(programRepo.save(target));
     }
