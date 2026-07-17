@@ -9,8 +9,13 @@ import java.util.Optional;
 public interface TrainingProgramRepository extends JpaRepository<TrainingProgram, Long> {
     List<TrainingProgram> findByUserId(Long userId);
 
-    @Query("SELECT p FROM TrainingProgram p LEFT JOIN FETCH p.workoutTemplates t " +
-           "LEFT JOIN FETCH t.exercises e LEFT JOIN FETCH e.exercise " +
+    /**
+     * Fetches the program with its templates. Template exercises are loaded by
+     * a second query ({@link WorkoutTemplateRepository#findByProgramIdWithExercises})
+     * — Hibernate cannot fetch-join two List "bags" (workoutTemplates AND
+     * exercises) in one query without a MultipleBagFetchException.
+     */
+    @Query("SELECT DISTINCT p FROM TrainingProgram p LEFT JOIN FETCH p.workoutTemplates " +
            "WHERE p.id = :id AND p.user.id = :userId")
     Optional<TrainingProgram> findByIdAndUserIdWithDetails(Long id, Long userId);
 

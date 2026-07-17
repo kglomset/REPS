@@ -19,6 +19,7 @@ import java.util.*;
 public class ProgramService {
 
     private final TrainingProgramRepository programRepo;
+    private final WorkoutTemplateRepository templateRepo;
     private final WorkoutSessionRepository sessionRepo;
     private final UserRepository userRepo;
     private final ExerciseRepository exerciseRepo;
@@ -113,9 +114,7 @@ public class ProgramService {
     }
 
     public ProgramResponse getProgram(Long userId, Long programId) {
-        return programRepo.findByIdAndUserIdWithDetails(programId, userId)
-                .map(this::toResponse)
-                .orElseThrow(() -> new NoSuchElementException("Program not found"));
+        return toResponse(loadProgramWithDetails(userId, programId));
     }
 
     public Optional<ProgramResponse> getActiveProgram(Long userId) {
@@ -124,16 +123,14 @@ public class ProgramService {
 
     @Transactional
     public void deactivateProgram(Long userId, Long programId) {
-        TrainingProgram target = programRepo.findByIdAndUserIdWithDetails(programId, userId)
-                .orElseThrow(() -> new NoSuchElementException("Program not found"));
+        TrainingProgram target = loadProgramWithDetails(userId, programId);
         target.setActive(false);
         programRepo.save(target);
     }
 
     @Transactional
     public void updateProgram(Long userId, Long programId, String name) {
-        TrainingProgram target = programRepo.findByIdAndUserIdWithDetails(programId, userId)
-                .orElseThrow(() -> new NoSuchElementException("Program not found"));
+        TrainingProgram target = loadProgramWithDetails(userId, programId);
         if (name != null && !name.isBlank()) target.setName(name.trim());
         programRepo.save(target);
     }
@@ -146,8 +143,7 @@ public class ProgramService {
     @Transactional
     public ProgramResponse updateProgramStructure(Long userId, Long programId,
                                                   UpdateProgramStructureRequest req) {
-        TrainingProgram program = programRepo.findByIdAndUserIdWithDetails(programId, userId)
-                .orElseThrow(() -> new NoSuchElementException("Program not found"));
+        TrainingProgram program = loadProgramWithDetails(userId, programId);
 
         if (req.getName() != null && !req.getName().isBlank()) {
             program.setName(req.getName().trim());
@@ -200,8 +196,7 @@ public class ProgramService {
 
     @Transactional
     public ProgramResponse activateProgram(Long userId, Long programId) {
-        TrainingProgram target = programRepo.findByIdAndUserIdWithDetails(programId, userId)
-                .orElseThrow(() -> new NoSuchElementException("Program not found"));
+        TrainingProgram target = loadProgramWithDetails(userId, programId);
 
         // Already active — nothing to do (idempotent toggle)
         if (Boolean.TRUE.equals(target.getActive())) {
@@ -335,6 +330,20 @@ public class ProgramService {
                 .limit(limit)
                 .map(Exercise::getId)
                 .toList();
+    }
+
+    /**
+     * Two-query load: program + templates, then template exercises. Both Lists
+     * are Hibernate "bags", so they cannot be fetch-joined in a single query
+     * (MultipleBagFetchException — used to surface as a 409 on toggling).
+     * The second query initialises the collections of the already-managed
+     * template instances in the same persistence context.
+     */
+    private TrainingProgram loadProgramWithDetails(Long userId, Long programId) {
+        TrainingProgram program = programRepo.findByIdAndUserIdWithDetails(programId, userId)
+                .orElseThrow(() -> new NoSuchElementException("Program not found"));
+        templateRepo.findByProgramIdWithExercises(programId);
+        return program;
     }
 
     // ── Mappers ──────────────────────────────────────────────────────────────
