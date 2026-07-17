@@ -25,6 +25,7 @@ public class WorkoutService {
     private final UserRepository userRepo;
     private final ExerciseSetRepository setRepo;
     private final ProgramService programService;
+    private final ProgressionService progressionService;
 
     @Transactional
     public WorkoutSessionResponse startSession(Long userId, StartSessionRequest req) {
@@ -317,6 +318,13 @@ public class WorkoutService {
             }
         }
 
+        // Progression suggestion — only meaningful while the session is active
+        ProgressionSuggestionResponse suggestion = null;
+        if (session.getCompletedAt() == null) {
+            suggestion = progressionService.suggestFor(
+                    session.getUser().getId(), se.getExercise(), repsMin, repsMax, targetSets);
+        }
+
         return SessionExerciseResponse.builder()
                 .id(se.getId())
                 .exercise(programService.exerciseToResponse(se.getExercise()))
@@ -329,6 +337,7 @@ public class WorkoutService {
                 .restSeconds(restSeconds)
                 .sets(se.getSets().stream().map(this::toSetResponse).toList())
                 .previousSets(prevSets)
+                .suggestion(suggestion)
                 .build();
     }
 

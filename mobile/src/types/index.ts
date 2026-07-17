@@ -81,6 +81,25 @@ export interface ExerciseSetResponse {
   completedAt: string;
 }
 
+// ─── Progression suggestions ──────────────────────────────────────────────────
+export type SuggestionType = 'INCREASE_WEIGHT' | 'DELOAD' | 'SWAP_EXERCISE';
+
+export interface ProgressionSuggestion {
+  type: SuggestionType;
+  message: string;
+  /** Target weight for INCREASE_WEIGHT / DELOAD; absent for bodyweight & swaps */
+  suggestedWeightKg?: number;
+  /** Swap candidates (same primary muscle group) for SWAP_EXERCISE */
+  alternatives?: { id: number; name: string }[];
+}
+
+export interface ProgramInsightResponse {
+  status: 'OK' | 'STALLING' | 'CHANGE_RECOMMENDED' | 'NO_ACTIVE_PROGRAM';
+  message: string;
+  weeksActive?: number;
+  stalledExercises: { id: number; name: string }[];
+}
+
 export interface SessionExerciseResponse {
   id: number;
   exercise: ExerciseResponse;
@@ -94,6 +113,8 @@ export interface SessionExerciseResponse {
   restSeconds?: number;
   sets: ExerciseSetResponse[];
   previousSets: ExerciseSetResponse[]; // guidance from last workout
+  /** Progression suggestion (null/absent = keep progressing reps). Active sessions only. */
+  suggestion?: ProgressionSuggestion | null;
 }
 
 export interface WorkoutSessionResponse {

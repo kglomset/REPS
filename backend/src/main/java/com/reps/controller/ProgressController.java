@@ -3,8 +3,10 @@ package com.reps.controller;
 import com.reps.dto.request.BodyWeightRequest;
 import com.reps.dto.response.BodyWeightResponse;
 import com.reps.dto.response.ExerciseProgressResponse;
+import com.reps.dto.response.ProgramInsightResponse;
 import com.reps.security.UserPrincipal;
 import com.reps.service.ProgressService;
+import com.reps.service.ProgressionService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -19,6 +21,13 @@ import java.util.List;
 public class ProgressController {
 
     private final ProgressService progressService;
+    private final ProgressionService progressionService;
+
+    /** Program-level progression insight for the active program (design doc R4). */
+    @GetMapping("/program-insight")
+    public ProgramInsightResponse programInsight(@AuthenticationPrincipal UserPrincipal principal) {
+        return progressionService.programInsight(principal.getId());
+    }
 
     @GetMapping("/exercises/{exerciseId}")
     public ExerciseProgressResponse exerciseProgress(

@@ -21,4 +21,6 @@ public class SessionExerciseResponse {
     private List<ExerciseSetResponse> sets;
     /** Last session's sets for this exercise — shown as guidance. */
     private List<ExerciseSetResponse> previousSets;
+    /** Progression suggestion (null = keep doing what you're doing). Only computed for active sessions. */
+    private ProgressionSuggestionResponse suggestion;
 }

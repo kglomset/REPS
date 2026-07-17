@@ -9,6 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { format, startOfMonth, getDaysInMonth, addMonths, subMonths } from 'date-fns';
 import { programsApi } from '@/services/api/programs';
 import { workoutsApi } from '@/services/api/workouts';
+import { progressApi } from '@/services/api/progress';
 import { ProgramResponse, WorkoutSessionResponse, WorkoutTemplateResponse } from '@/types';
 import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/constants/theme';
 
@@ -388,6 +389,17 @@ function ProgramDetailsCard({ program, sessions }: {
   const trendIcon = trend === 'up' ? 'trending-up'
     : trend === 'down' ? 'trending-down' : 'remove-outline';
 
+  // ── Progression insight (backend rule engine — design doc R4) ──
+  const { data: insight } = useQuery({
+    queryKey: ['programInsight', program.id],
+    queryFn: progressApi.getProgramInsight,
+    staleTime: 5 * 60_000,
+  });
+  const showInsightBanner = insight
+    && (insight.status === 'STALLING' || insight.status === 'CHANGE_RECOMMENDED');
+  const insightColor = insight?.status === 'CHANGE_RECOMMENDED' ? Colors.error : Colors.warning;
+  const insightTint  = insight?.status === 'CHANGE_RECOMMENDED' ? Colors.errorTint : Colors.warningTint;
+
   return (
     <View style={{ backgroundColor: Colors.surface, borderRadius: Radius.lg,
       padding: Spacing.md, marginTop: Spacing.lg, ...Shadow.card }}>
@@ -396,6 +408,27 @@ function ProgramDetailsCard({ program, sessions }: {
         <Text style={{ fontSize: FontSize.sm, fontWeight: FontWeight.semibold,
           color: Colors.textSecondary }}>Program Insights</Text>
       </View>
+
+      {/* Progression status banner — only when something needs attention */}
+      {showInsightBanner && (
+        <View style={{ backgroundColor: insightTint, borderRadius: Radius.md,
+          padding: Spacing.sm, marginBottom: Spacing.md, flexDirection: 'row',
+          alignItems: 'flex-start', gap: 8, borderWidth: 1, borderColor: insightColor }}>
+          <Ionicons name="alert-circle-outline" size={16} color={insightColor}
+            style={{ marginTop: 1 }} />
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: FontSize.sm, color: Colors.textPrimary,
+              fontWeight: FontWeight.medium }}>
+              {insight!.message}
+            </Text>
+            {insight!.stalledExercises.length > 0 && (
+              <Text style={{ fontSize: FontSize.xs, color: Colors.textSecondary, marginTop: 2 }}>
+                Stalled: {insight!.stalledExercises.map((e) => e.name).join(', ')}
+              </Text>
+            )}
+          </View>
+        </View>
+      )}
 
       {/* Top stats: training days + avg duration + strength trend */}
       <View style={{ flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.md }}>

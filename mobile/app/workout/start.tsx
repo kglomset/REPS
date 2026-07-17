@@ -11,7 +11,7 @@ import DraggableFlatList, { RenderItemParams } from 'react-native-draggable-flat
 import { workoutsApi } from '@/services/api/workouts';
 import { exercisesApi } from '@/services/api/exercises';
 import { useWorkoutStore } from '@/store/useWorkoutStore';
-import { SessionExerciseResponse, ExerciseResponse, TrainingMethod } from '@/types';
+import { SessionExerciseResponse, ExerciseResponse, TrainingMethod, ProgressionSuggestion } from '@/types';
 import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/constants/theme';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -67,6 +67,9 @@ export default function ActiveWorkoutScreen() {
   const elapsedRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [reorderMode, setReorderMode]       = useState(false);
   const [orderedExercises, setOrderedExercises] = useState<SessionExerciseResponse[]>([]);
+  // Progression suggestions: dismissed keys + which exercise's sheet is open
+  const [dismissedSuggestions, setDismissedSuggestions] = useState<Record<string, boolean>>({});
+  const [suggestionFor, setSuggestionFor]   = useState<SessionExerciseResponse | null>(null);
 
   // ── Session bootstrap ───────────────────────────────────────────────────────
 
@@ -194,6 +197,28 @@ export default function ActiveWorkoutScreen() {
       return next;
     });
   }, []);
+
+  // ── Progression suggestions ─────────────────────────────────────────────────
+  // Dismissals are keyed on exercise + type + message, so new data (which
+  // changes the message) resurfaces the badge while repeats stay hidden.
+
+  const dismissSuggestion = useCallback((ex: SessionExerciseResponse) => {
+    setDismissedSuggestions((prev) => ({ ...prev, [suggestionKey(ex)]: true }));
+    setSuggestionFor(null);
+  }, []);
+
+  /** One-tap apply: pre-fill the suggested weight on every not-yet-completed row. */
+  const applySuggestion = useCallback((ex: SessionExerciseResponse) => {
+    const sugg = ex.suggestion;
+    const st = exStates[ex.id];
+    if (sugg?.suggestedWeightKg != null && st) {
+      const w = String(sugg.suggestedWeightKg);
+      updateExState(ex.id, {
+        rows: st.rows.map((r) => (r.completed ? r : { ...r, weight: w })),
+      });
+    }
+    setSuggestionFor(null);
+  }, [exStates, updateExState]);
 
   // ── Set completion (optimistic) ─────────────────────────────────────────────
 
@@ -338,6 +363,14 @@ export default function ActiveWorkoutScreen() {
 
   const grouped = buildGroups(activeSession.exercises, exStates);
 
+  // Suggestions still visible (not dismissed), keyed by session-exercise id
+  const visibleSuggestions: Record<number, ProgressionSuggestion> = {};
+  for (const ex of activeSession.exercises) {
+    if (ex.suggestion && !dismissedSuggestions[suggestionKey(ex)]) {
+      visibleSuggestions[ex.id] = ex.suggestion;
+    }
+  }
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: Colors.surfaceMuted }}>
 
@@ -460,6 +493,8 @@ export default function ActiveWorkoutScreen() {
                 allStates={exStates}
                 onOpenSupersetPicker={() => setSupersetPickerForId(group[0].id)}
                 onRemoveFromGroup={() => handleRemoveFromGroup(group[0].id)}
+                suggestion={visibleSuggestions[group[0].id]}
+                onOpenSuggestion={() => setSuggestionFor(group[0])}
               />
             ) : (
               <SupersetBlock
@@ -471,6 +506,8 @@ export default function ActiveWorkoutScreen() {
                 allSessionExercises={activeSession.exercises}
                 onOpenSupersetPicker={(id) => setSupersetPickerForId(id)}
                 onRemoveFromGroup={handleRemoveFromGroup}
+                suggestions={visibleSuggestions}
+                onOpenSuggestion={(ex) => setSuggestionFor(ex)}
               />
             )
           )}
@@ -510,6 +547,15 @@ export default function ActiveWorkoutScreen() {
       {summary && (
         <WorkoutSummaryOverlay summary={summary} onDismiss={handleSummaryDismiss} />
       )}
+      {suggestionFor?.suggestion && (
+        <SuggestionSheet
+          exerciseName={suggestionFor.exercise.name}
+          suggestion={suggestionFor.suggestion}
+          onApply={() => applySuggestion(suggestionFor)}
+          onDismiss={() => dismissSuggestion(suggestionFor)}
+          onClose={() => setSuggestionFor(null)}
+        />
+      )}
 
       {/* ── Cancel confirmation ─────────────────────────────────────────────── */}
       <Modal visible={cancelConfirm} transparent animationType="fade">
@@ -544,6 +590,13 @@ export default function ActiveWorkoutScreen() {
       </Modal>
     </SafeAreaView>
   );
+}
+
+// ─── Suggestion helpers ───────────────────────────────────────────────────────
+
+/** Dismissal key: exercise + type + message → new data resurfaces the badge. */
+function suggestionKey(ex: SessionExerciseResponse): string {
+  return `${ex.exercise.id}:${ex.suggestion?.type}:${ex.suggestion?.message}`;
 }
 
 // ─── Group builder ────────────────────────────────────────────────────────────
@@ -635,7 +688,8 @@ function MuscleChips({ muscles }: { muscles: SessionExerciseResponse['exercise']
 // ─── Exercise block ───────────────────────────────────────────────────────────
 
 function ExerciseBlock({ ex, exState, onUpdateState, onSetComplete,
-  allSessionExercises, allStates, onOpenSupersetPicker, onRemoveFromGroup }: {
+  allSessionExercises, allStates, onOpenSupersetPicker, onRemoveFromGroup,
+  suggestion, onOpenSuggestion }: {
   ex: SessionExerciseResponse;
   exState: ExState | undefined;
   onUpdateState: (p: Partial<ExState>) => void;
@@ -644,6 +698,8 @@ function ExerciseBlock({ ex, exState, onUpdateState, onSetComplete,
   allStates: Record<number, ExState>;
   onOpenSupersetPicker: () => void;
   onRemoveFromGroup: () => void;
+  suggestion?: ProgressionSuggestion;
+  onOpenSuggestion?: () => void;
 }) {
   const [menuVisible, setMenuVisible] = useState(false);
   if (!exState) return null;
@@ -667,6 +723,9 @@ function ExerciseBlock({ ex, exState, onUpdateState, onSetComplete,
           <MuscleChips muscles={ex.exercise.muscles} />
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 }}>
+          {suggestion && onOpenSuggestion && (
+            <SuggestionBadge type={suggestion.type} onPress={onOpenSuggestion} />
+          )}
           <MethodPicker
             value={exState.method}
             onChange={(m) => onUpdateState({ method: m })}
@@ -717,7 +776,8 @@ function ExerciseBlock({ ex, exState, onUpdateState, onSetComplete,
 // ─── Superset block ───────────────────────────────────────────────────────────
 
 function SupersetBlock({ exercises, exStates, onUpdateState, onSetComplete,
-  allSessionExercises, onOpenSupersetPicker, onRemoveFromGroup }: {
+  allSessionExercises, onOpenSupersetPicker, onRemoveFromGroup,
+  suggestions, onOpenSuggestion }: {
   exercises: SessionExerciseResponse[];
   exStates: Record<number, ExState>;
   onUpdateState: (exId: number, p: Partial<ExState>) => void;
@@ -725,6 +785,8 @@ function SupersetBlock({ exercises, exStates, onUpdateState, onSetComplete,
   allSessionExercises: SessionExerciseResponse[];
   onOpenSupersetPicker: (exId: number) => void;
   onRemoveFromGroup: (exId: number) => void;
+  suggestions?: Record<number, ProgressionSuggestion>;
+  onOpenSuggestion?: (ex: SessionExerciseResponse) => void;
 }) {
   const label = exercises.length === 2 ? 'Superset' : 'Circle';
   return (
@@ -760,6 +822,12 @@ function SupersetBlock({ exercises, exStates, onUpdateState, onSetComplete,
                   </Text>
                   <MuscleChips muscles={ex.exercise.muscles} />
                 </View>
+                {suggestions?.[ex.id] && onOpenSuggestion && (
+                  <SuggestionBadge
+                    type={suggestions[ex.id].type}
+                    onPress={() => onOpenSuggestion(ex)}
+                  />
+                )}
                 <TouchableOpacity
                   onPress={() => onRemoveFromGroup(ex.id)}
                   style={{ padding: 4, marginTop: 2 }}
@@ -1234,6 +1302,124 @@ function ExerciseMenu({ visible, inGroup, onClose, onGroupWith, onRemoveFromGrou
             <Text style={{ color: Colors.textSecondary, fontSize: FontSize.sm }}>Cancel</Text>
           </TouchableOpacity>
         </View>
+      </TouchableOpacity>
+    </Modal>
+  );
+}
+
+// ─── Progression suggestion badge + sheet ─────────────────────────────────────
+// One progression variable at a time, reps before weight: the badge only shows
+// when the algorithm has something actionable (add weight / deload / swap).
+
+const SUGGESTION_STYLES: Record<ProgressionSuggestion['type'], {
+  icon: keyof typeof Ionicons.glyphMap; color: string; tint: string; title: string;
+}> = {
+  INCREASE_WEIGHT: { icon: 'trending-up',    color: Colors.success, tint: Colors.successTint, title: 'Increase weight' },
+  DELOAD:          { icon: 'trending-down',  color: Colors.warning, tint: Colors.warningTint, title: 'Deload' },
+  SWAP_EXERCISE:   { icon: 'swap-horizontal', color: Colors.primary, tint: Colors.primaryTint, title: 'Try a variation' },
+};
+
+function SuggestionBadge({ type, onPress }: {
+  type: ProgressionSuggestion['type'];
+  onPress: () => void;
+}) {
+  const s = SUGGESTION_STYLES[type];
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+      style={{
+        width: 24, height: 24, borderRadius: 12,
+        backgroundColor: s.tint, borderWidth: 1, borderColor: s.color,
+        alignItems: 'center', justifyContent: 'center',
+      }}>
+      <Ionicons name={s.icon} size={13} color={s.color} />
+    </TouchableOpacity>
+  );
+}
+
+function SuggestionSheet({ exerciseName, suggestion, onApply, onDismiss, onClose }: {
+  exerciseName: string;
+  suggestion: ProgressionSuggestion;
+  onApply: () => void;
+  onDismiss: () => void;
+  onClose: () => void;
+}) {
+  const s = SUGGESTION_STYLES[suggestion.type];
+  const canApply = suggestion.suggestedWeightKg != null;
+
+  return (
+    <Modal visible transparent animationType="slide">
+      <TouchableOpacity
+        style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' }}
+        onPress={onClose} activeOpacity={1}>
+        <TouchableOpacity activeOpacity={1} style={{
+          backgroundColor: Colors.surface, borderTopLeftRadius: Radius.xl,
+          borderTopRightRadius: Radius.xl, padding: Spacing.lg, paddingBottom: 36 }}>
+
+          {/* Header */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
+            marginBottom: Spacing.xs }}>
+            <View style={{ width: 32, height: 32, borderRadius: 16,
+              backgroundColor: s.tint, alignItems: 'center', justifyContent: 'center' }}>
+              <Ionicons name={s.icon} size={17} color={s.color} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: FontSize.md, fontWeight: FontWeight.bold,
+                color: Colors.textPrimary }}>{s.title}</Text>
+              <Text style={{ fontSize: FontSize.xs, color: Colors.textSecondary }}>
+                {exerciseName}
+              </Text>
+            </View>
+          </View>
+
+          {/* Why */}
+          <Text style={{ fontSize: FontSize.sm, color: Colors.textSecondary,
+            marginBottom: Spacing.md }}>
+            {suggestion.message}
+          </Text>
+
+          {/* Swap alternatives (informational — swap is done in the program editor) */}
+          {suggestion.type === 'SWAP_EXERCISE' && (suggestion.alternatives?.length ?? 0) > 0 && (
+            <View style={{ marginBottom: Spacing.md }}>
+              <Text style={{ fontSize: FontSize.xs, fontWeight: FontWeight.semibold,
+                color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5,
+                marginBottom: 6 }}>Alternatives</Text>
+              {suggestion.alternatives!.map((alt) => (
+                <View key={alt.id} style={{ flexDirection: 'row', alignItems: 'center',
+                  gap: 8, paddingVertical: 6 }}>
+                  <Ionicons name="barbell-outline" size={14} color={Colors.textMuted} />
+                  <Text style={{ fontSize: FontSize.sm, color: Colors.textPrimary }}>
+                    {alt.name}
+                  </Text>
+                </View>
+              ))}
+              <Text style={{ fontSize: FontSize.xs, color: Colors.textMuted, marginTop: 4 }}>
+                Swap it in from your program's edit screen when you're ready.
+              </Text>
+            </View>
+          )}
+
+          {/* Apply */}
+          {canApply && (
+            <TouchableOpacity onPress={onApply}
+              style={{ backgroundColor: s.color, borderRadius: Radius.md,
+                paddingVertical: 14, alignItems: 'center', marginBottom: Spacing.sm }}>
+              <Text style={{ color: Colors.textInverse, fontWeight: FontWeight.semibold,
+                fontSize: FontSize.md }}>
+                Use {suggestion.suggestedWeightKg} kg for remaining sets
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          {/* Dismiss */}
+          <TouchableOpacity onPress={onDismiss}
+            style={{ alignItems: 'center', paddingVertical: 10 }}>
+            <Text style={{ color: Colors.textSecondary, fontSize: FontSize.sm }}>
+              Dismiss
+            </Text>
+          </TouchableOpacity>
+        </TouchableOpacity>
       </TouchableOpacity>
     </Modal>
   );

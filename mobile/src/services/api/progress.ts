@@ -1,6 +1,6 @@
 import client from './client';
 import { ENDPOINTS } from '@/constants/api';
-import { ExerciseProgressResponse, BodyWeightResponse } from '@/types';
+import { ExerciseProgressResponse, BodyWeightResponse, ProgramInsightResponse } from '@/types';
 
 export const progressApi = {
   getExerciseProgress: (exerciseId: number) =>
@@ -13,4 +13,7 @@ export const progressApi = {
 
   logBodyWeight: (data: { weightKg: number; logDate: string }) =>
     client.post<BodyWeightResponse>(ENDPOINTS.progress.bodyWeight, data).then((r) => r.data),
+
+  getProgramInsight: () =>
+    client.get<ProgramInsightResponse>(ENDPOINTS.progress.programInsight).then((r) => r.data),
 };

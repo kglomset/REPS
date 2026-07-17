@@ -27,5 +27,6 @@ export const ENDPOINTS = {
   progress: {
     exercise: (id: number) => `/progress/exercises/${id}`,
     bodyWeight: '/progress/body-weight',
+    programInsight: '/progress/program-insight',
   },
 } as const;
