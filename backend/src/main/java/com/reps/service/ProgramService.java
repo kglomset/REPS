@@ -136,9 +136,10 @@ public class ProgramService {
     }
 
     /**
-     * Edit an existing program's structure in place. Templates are matched by id
-     * and have their exercise lists rebuilt — templates themselves are never
-     * deleted, so completed sessions that reference them stay intact.
+     * Edit an existing program's structure in place. Templates are matched by
+     * id and have their exercise lists rebuilt; days without a templateId are
+     * created, and days omitted from the payload are removed (their completed
+     * sessions are detached first so history stays intact).
      */
     @Transactional
     public ProgramResponse updateProgramStructure(Long userId, Long programId,
@@ -152,15 +153,31 @@ public class ProgramService {
         int defaultRest = program.getGoal() == TrainingGoal.STRENGTH ? 240 : 120;
 
         if (req.getDays() != null) {
+            Set<Long> keptTemplateIds = new HashSet<>();
             for (UpdateProgramStructureRequest.Day day : req.getDays()) {
-                if (day.getTemplateId() == null) continue;
-                WorkoutTemplate template = program.getWorkoutTemplates().stream()
-                        .filter(t -> t.getId().equals(day.getTemplateId()))
-                        .findFirst().orElse(null);
-                if (template == null) continue;
+                WorkoutTemplate template;
+                if (day.getTemplateId() != null) {
+                    template = program.getWorkoutTemplates().stream()
+                            .filter(t -> t.getId().equals(day.getTemplateId()))
+                            .findFirst().orElse(null);
+                    if (template == null) continue;
+                    keptTemplateIds.add(day.getTemplateId());
+                } else {
+                    // New training day toggled on in the editor
+                    template = WorkoutTemplate.builder()
+                            .program(program)
+                            .name(day.getName() != null && !day.getName().isBlank()
+                                    ? day.getName().trim() : "Workout")
+                            .dayIndex(day.getDayIndex())
+                            .build();
+                    program.getWorkoutTemplates().add(template);
+                }
 
                 if (day.getName() != null && !day.getName().isBlank()) {
                     template.setName(day.getName().trim());
+                }
+                if (day.getDayIndex() != null) {
+                    template.setDayIndex(day.getDayIndex());
                 }
 
                 template.getExercises().clear();
@@ -188,6 +205,20 @@ public class ProgramService {
                                     ? ex.getSupersetGroupId() : null)
                             .build());
                 }
+            }
+
+            // Training days toggled off in the editor: detach their completed
+            // sessions (history is kept, template link set to null) and remove
+            // the template (orphanRemoval deletes it).
+            List<WorkoutTemplate> removed = program.getWorkoutTemplates().stream()
+                    .filter(t -> t.getId() != null && !keptTemplateIds.contains(t.getId()))
+                    .toList();
+            for (WorkoutTemplate t : removed) {
+                for (WorkoutSession s : sessionRepo.findByTemplateId(t.getId())) {
+                    s.setTemplate(null);
+                    sessionRepo.save(s);
+                }
+                program.getWorkoutTemplates().remove(t);
             }
         }
 

@@ -16,8 +16,11 @@ public class UpdateProgramStructureRequest {
 
     @Data
     public static class Day {
+        /** Null = new training day to create. */
         private Long templateId;
         private String name;
+        /** 0 = Monday … 6 = Sunday. */
+        private Integer dayIndex;
         private List<Ex> exercises;
     }
 

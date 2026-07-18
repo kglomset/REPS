@@ -88,6 +88,21 @@ const WEEKLY_SETS_GUIDE: Record<FitnessLevel, Array<{ muscle: string; min: numbe
   ],
 };
 
+/**
+ * Granular DB muscle groups rolled up into the aggregates shown in the
+ * volume guide. Tapping an aggregate row reveals the per-muscle breakdown.
+ */
+const ROLLUP_PARTS: Record<string, string[]> = {
+  Shoulders: ['Front Delts', 'Side Delts', 'Rear Delts', 'Traps'],
+  Back:      ['Upper Back', 'Lats', 'Lower Back'],
+  Abs:       ['Abdominals', 'Obliques'],
+};
+
+/** Myo-reps clusters are short, so a myo-reps exercise always counts as 3 sets. */
+const MYOREPS_COUNTED_SETS = 3;
+const countedSets = (method: TrainingMethod, sets: number) =>
+  method === 'MYOREPS' ? MYOREPS_COUNTED_SETS : sets;
+
 const SPLIT_NAMES: Record<number, string> = {
   2: 'Full Body A / Full Body B',
   3: 'Push / Pull / Legs',
@@ -519,6 +534,7 @@ function DiyBuilder({ editProgramId }: { editProgramId?: number }) {
       days: days.map((d) => ({
         templateId: d.templateId,
         name: d.name,
+        dayIndex: d.dayIndex,
         exercises: d.exercises.map((e) => ({
           exerciseId: e.exercise.id,
           sets: e.sets,
@@ -544,6 +560,21 @@ function DiyBuilder({ editProgramId }: { editProgramId?: number }) {
       return [...prev, { name: DAY_NAMES_MAP[idx], dayIndex: idx, exercises: [] }]
         .sort((a, b) => a.dayIndex - b.dayIndex);
     });
+  };
+
+  const renameDay = (dayIndex: number, name: string) => {
+    setDays((prev) => prev.map((d) => (d.dayIndex === dayIndex ? { ...d, name } : d)));
+  };
+
+  /** Move a workout to another weekday (no-op if the target day is taken). */
+  const moveDayIndex = (from: number, to: number) => {
+    setDays((prev) => {
+      if (from === to || prev.some((d) => d.dayIndex === to)) return prev;
+      return prev
+        .map((d) => (d.dayIndex === from ? { ...d, dayIndex: to } : d))
+        .sort((a, b) => a.dayIndex - b.dayIndex);
+    });
+    setEditingDayIdx((cur) => (cur === from ? to : cur));
   };
 
   const addExercise = (dayIndex: number, ex: ExerciseResponse) => {
@@ -602,12 +633,14 @@ function DiyBuilder({ editProgramId }: { editProgramId?: number }) {
     e.name.toLowerCase().includes(exSearch.toLowerCase())
   );
 
-  // Compute weekly sets per muscle across all days
+  // Compute weekly sets per muscle across all days.
+  // Myo-reps exercises count as a fixed 3 sets (clusters are short).
   const currentVolume: Record<string, number> = {};
   for (const day of days) {
     for (const de of day.exercises) {
       for (const m of de.exercise.muscles.filter((mu) => mu.role === 'PRIMARY')) {
-        currentVolume[m.muscleGroupName] = (currentVolume[m.muscleGroupName] ?? 0) + de.sets;
+        currentVolume[m.muscleGroupName] =
+          (currentVolume[m.muscleGroupName] ?? 0) + countedSets(de.method, de.sets);
       }
     }
   }
@@ -636,6 +669,48 @@ function DiyBuilder({ editProgramId }: { editProgramId?: number }) {
         {/* One scroll for the whole editor: selected list never overlaps the add list */}
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 40 }}
           keyboardShouldPersistTaps="handled">
+          {/* Workout name + weekday */}
+          <View style={{ paddingHorizontal: Spacing.lg, paddingTop: Spacing.md,
+            paddingBottom: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.border }}>
+            <Text style={{ fontSize: FontSize.xs, color: Colors.textMuted,
+              fontWeight: FontWeight.medium, marginBottom: 6 }}>WORKOUT NAME</Text>
+            <TextInput
+              value={editingDay.name}
+              onChangeText={(v) => renameDay(editingDay.dayIndex, v)}
+              placeholder="e.g. Push, Upper A"
+              placeholderTextColor={Colors.textMuted}
+              style={{ backgroundColor: Colors.surfaceMuted, borderRadius: Radius.md,
+                paddingHorizontal: Spacing.md, paddingVertical: 10,
+                fontSize: FontSize.md, color: Colors.textPrimary,
+                borderWidth: 1, borderColor: Colors.border, marginBottom: Spacing.md }}
+            />
+            <Text style={{ fontSize: FontSize.xs, color: Colors.textMuted,
+              fontWeight: FontWeight.medium, marginBottom: 6 }}>DAY</Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+              {DAY_NAMES_MAP.map((dn, idx) => {
+                const current  = idx === editingDay.dayIndex;
+                const occupied = !current && days.some((d) => d.dayIndex === idx);
+                return (
+                  <TouchableOpacity key={idx}
+                    disabled={current || occupied}
+                    onPress={() => moveDayIndex(editingDay.dayIndex, idx)}
+                    style={{ width: 40, height: 40, borderRadius: 20,
+                      alignItems: 'center', justifyContent: 'center',
+                      opacity: occupied ? 0.35 : 1,
+                      backgroundColor: current ? Colors.primary : Colors.surfaceMuted,
+                      borderWidth: 1,
+                      borderColor: current ? Colors.primary : Colors.border }}>
+                    <Text style={{ fontSize: FontSize.xs, fontWeight: FontWeight.bold,
+                      color: current ? Colors.textInverse : Colors.textSecondary }}>{dn}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            <Text style={{ fontSize: 10, color: Colors.textMuted, marginTop: 6 }}>
+              Greyed-out days already have a workout.
+            </Text>
+          </View>
+
           {/* Selected exercises */}
           {editingDay.exercises.length > 0 && (
             <View style={{ borderBottomWidth: 1, borderBottomColor: Colors.border }}>
@@ -864,9 +939,9 @@ function DiyBuilder({ editProgramId }: { editProgramId?: number }) {
           ))}
         </View>
 
-        {/* Training method is now chosen per exercise inside each day. */}
+          </>)}
 
-        {/* Training days */}
+        {/* Training days — also editable for existing programs (add/remove workout days) */}
         <Text style={{ fontSize: FontSize.sm, color: Colors.textSecondary,
           fontWeight: FontWeight.medium, marginBottom: 8 }}>Training Days</Text>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between',
@@ -885,7 +960,6 @@ function DiyBuilder({ editProgramId }: { editProgramId?: number }) {
             );
           })}
         </View>
-          </>)}
 
         {/* Day tiles */}
         {days.map((day) => (
@@ -953,6 +1027,7 @@ function VolumeGuide({ fitnessLevel, currentVolume, open, onToggle }: {
   onToggle: () => void;
 }) {
   const guide = WEEKLY_SETS_GUIDE[fitnessLevel];
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
 
   return (
     <View style={{ backgroundColor: Colors.surfaceMuted, borderRadius: Radius.lg,
@@ -983,7 +1058,12 @@ function VolumeGuide({ fitnessLevel, currentVolume, open, onToggle }: {
             Target sets per muscle group per week. Bars show your current plan.
           </Text>
           {guide.map(({ muscle, min, max }) => {
-            const current = currentVolume[muscle] ?? 0;
+            const parts   = ROLLUP_PARTS[muscle];
+            const current = parts
+              ? parts.reduce((acc, p) => acc + (currentVolume[p] ?? 0), 0)
+                + (currentVolume[muscle] ?? 0) // exercises tagged with the aggregate itself
+              : currentVolume[muscle] ?? 0;
+            const isOpen   = !!expandedGroups[muscle];
             const inRange  = current >= min && current <= max;
             const over     = current > max;
             const barColor = over ? Colors.warning : inRange ? Colors.success : Colors.primary;
@@ -991,10 +1071,19 @@ function VolumeGuide({ fitnessLevel, currentVolume, open, onToggle }: {
 
             return (
               <View key={muscle} style={{ marginBottom: 10 }}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between',
-                  alignItems: 'center', marginBottom: 3 }}>
-                  <Text style={{ fontSize: FontSize.xs, color: Colors.textPrimary,
-                    fontWeight: FontWeight.medium }}>{muscle}</Text>
+                <TouchableOpacity
+                  disabled={!parts}
+                  onPress={() => setExpandedGroups((prev) => ({ ...prev, [muscle]: !prev[muscle] }))}
+                  style={{ flexDirection: 'row', justifyContent: 'space-between',
+                    alignItems: 'center', marginBottom: 3 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                    <Text style={{ fontSize: FontSize.xs, color: Colors.textPrimary,
+                      fontWeight: FontWeight.medium }}>{muscle}</Text>
+                    {parts && (
+                      <Ionicons name={isOpen ? 'chevron-up' : 'chevron-down'}
+                        size={11} color={Colors.textMuted} />
+                    )}
+                  </View>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                     {current > 0 && (
                       <Text style={{ fontSize: 10,
@@ -1007,7 +1096,7 @@ function VolumeGuide({ fitnessLevel, currentVolume, open, onToggle }: {
                       target {min}–{max}
                     </Text>
                   </View>
-                </View>
+                </TouchableOpacity>
                 {/* Guide range bar */}
                 <View style={{ height: 6, backgroundColor: Colors.surfaceSubtle,
                   borderRadius: 3, overflow: 'hidden' }}>
@@ -1025,11 +1114,30 @@ function VolumeGuide({ fitnessLevel, currentVolume, open, onToggle }: {
                     }} />
                   )}
                 </View>
+                {/* Granular breakdown for grouped muscles */}
+                {parts && isOpen && (
+                  <View style={{ marginTop: 6, marginLeft: 6, paddingLeft: Spacing.sm,
+                    borderLeftWidth: 2, borderLeftColor: Colors.border }}>
+                    {parts.map((p) => (
+                      <View key={p} style={{ flexDirection: 'row',
+                        justifyContent: 'space-between', paddingVertical: 2 }}>
+                        <Text style={{ fontSize: 10, color: Colors.textSecondary }}>{p}</Text>
+                        <Text style={{ fontSize: 10, fontWeight: FontWeight.semibold,
+                          color: (currentVolume[p] ?? 0) > 0
+                            ? Colors.textPrimary : Colors.textMuted }}>
+                          {currentVolume[p] ?? 0} sets
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
               </View>
             );
           })}
           <Text style={{ fontSize: 10, color: Colors.textMuted, marginTop: 4 }}>
-            Green = in range · Blue = building up · Yellow = above max
+            Green = in range · Blue = building up · Yellow = above max{'\n'}
+            Shoulders, Back and Abs group several muscles — tap them for the breakdown.
+            Myo-reps exercises count as 3 sets.
           </Text>
         </View>
       )}

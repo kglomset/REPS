@@ -48,6 +48,7 @@ export const programsApi = {
       days: {
         templateId?: number;
         name?: string;
+        dayIndex?: number;
         exercises: {
           exerciseId: number;
           sets: number;

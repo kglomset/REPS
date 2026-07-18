@@ -269,8 +269,10 @@ function ProgramDetailsCard({ program, sessions }: {
   const daysByMuscle: Record<string, Set<number>> = {};
   for (const t of program.workoutTemplates) {
     for (const te of t.exercises) {
+      // Myo-reps exercises count as a fixed 3 sets (clusters are short)
+      const counted = te.trainingMethod === 'MYOREPS' ? 3 : te.sets;
       for (const m of te.exercise.muscles.filter((mu) => mu.role === 'PRIMARY')) {
-        setsByMuscle[m.muscleGroupName] = (setsByMuscle[m.muscleGroupName] ?? 0) + te.sets;
+        setsByMuscle[m.muscleGroupName] = (setsByMuscle[m.muscleGroupName] ?? 0) + counted;
         (daysByMuscle[m.muscleGroupName] ??= new Set()).add(t.dayIndex);
       }
     }
