@@ -98,6 +98,17 @@ const ROLLUP_PARTS: Record<string, string[]> = {
   Abs:       ['Abdominals', 'Obliques'],
 };
 
+/**
+ * How an aggregate's headline number is derived from its parts:
+ * 'max' shows the most-trained sub-muscle (summing per-head sets would
+ * overstate volume against the target range), 'sum' adds them up.
+ */
+const AGGREGATE_DISPLAY: Record<string, 'sum' | 'max'> = {
+  Shoulders: 'max',
+  Back:      'max',
+  Abs:       'sum',
+};
+
 /** Myo-reps clusters are short, so a myo-reps exercise always counts as 3 sets. */
 const MYOREPS_COUNTED_SETS = 3;
 const countedSets = (method: TrainingMethod, sets: number) =>
@@ -1058,10 +1069,15 @@ function VolumeGuide({ fitnessLevel, currentVolume, open, onToggle }: {
             Target sets per muscle group per week. Bars show your current plan.
           </Text>
           {guide.map(({ muscle, min, max }) => {
-            const parts   = ROLLUP_PARTS[muscle];
+            const parts = ROLLUP_PARTS[muscle];
+            // Include exercises tagged with the aggregate group itself
+            const partValues = parts
+              ? [...parts.map((p) => currentVolume[p] ?? 0), currentVolume[muscle] ?? 0]
+              : [];
             const current = parts
-              ? parts.reduce((acc, p) => acc + (currentVolume[p] ?? 0), 0)
-                + (currentVolume[muscle] ?? 0) // exercises tagged with the aggregate itself
+              ? (AGGREGATE_DISPLAY[muscle] === 'max'
+                  ? Math.max(...partValues)
+                  : partValues.reduce((a, b) => a + b, 0))
               : currentVolume[muscle] ?? 0;
             const isOpen   = !!expandedGroups[muscle];
             const inRange  = current >= min && current <= max;
@@ -1137,6 +1153,7 @@ function VolumeGuide({ fitnessLevel, currentVolume, open, onToggle }: {
           <Text style={{ fontSize: 10, color: Colors.textMuted, marginTop: 4 }}>
             Green = in range · Blue = building up · Yellow = above max{'\n'}
             Shoulders, Back and Abs group several muscles — tap them for the breakdown.
+            Shoulders and Back show their most-trained muscle; Abs sums.
             Myo-reps exercises count as 3 sets.
           </Text>
         </View>
