@@ -1,0 +1,34 @@
+# Production overlay for the home-lab deploy at repstracker.no
+# Run with:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+#
+# Adds a Caddy reverse proxy (TLS + routing) in front of the existing
+# frontend/backend/postgres services. Caddy reaches them by service name over
+# the internal compose network, so only Caddy needs to be internet-exposed
+# (forward only ports 80 + 443 on your router).
+
+services:
+  frontend:
+    build:
+      args:
+        # Baked into the static web bundle at build time. Same-origin => no CORS.
+        EXPO_PUBLIC_API_URL: https://repstracker.no/api
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: reps-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - frontend
+      - backend
+
+volumes:
+  caddy_data:
+  caddy_config:
