@@ -1,0 +1,47 @@
+databases:
+  - name: reps-db
+    databaseName: reps
+    user: reps
+    plan: free
+
+services:
+  - type: web
+    name: reps-backend
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: starter
+    healthCheckPath: /api/actuator/health
+    envVars:
+      # ── Database ────────────────────────────────────────────────────────────
+      - key: DATABASE_HOST
+        fromDatabase:
+          name: reps-db
+          property: host
+      - key: DATABASE_PORT
+        fromDatabase:
+          name: reps-db
+          property: port
+      - key: DATABASE_NAME
+        fromDatabase:
+          name: reps-db
+          property: database
+      - key: SPRING_DATASOURCE_USERNAME
+        fromDatabase:
+          name: reps-db
+          property: user
+      - key: SPRING_DATASOURCE_PASSWORD
+        fromDatabase:
+          name: reps-db
+          property: password
+
+      # ── Security ─────────────────────────────────────────────────────────────
+      # Render generates a secure random value on first deploy and keeps it stable
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRATION_MS
+        value: 86400000
+
+      # ── Logging ───────────────────────────────────────────────────────────────
+      - key: LOGGING_LEVEL_COM_REPS
+        value: INFO
