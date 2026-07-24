@@ -38,6 +38,8 @@ services:
       context: ./mobile
       dockerfile: Dockerfile.web
       args:
+        # Prod: set EXPO_PUBLIC_API_URL=https://repstracker.no/api in .env
+        # (baked into the web bundle at build time, so rebuild with --build)
         EXPO_PUBLIC_API_URL: ${EXPO_PUBLIC_API_URL:-http://localhost:8080/api}
     container_name: reps-frontend
     ports:
@@ -45,6 +47,35 @@ services:
     depends_on:
       - backend
     restart: unless-stopped
+
+  # Domeneshop Dynamic DNS updater — keeps the apex A record synced with your
+  # home IP. Opt-in via the "ddns" profile so it only runs when you ask for it:
+  #   docker compose --profile ddns up -d --build
+  # Needs DOMENESHOP_TOKEN / DOMENESHOP_SECRET in .env. Skip the profile (or
+  # delete this service) if your home IP is static.
+  ddns:
+    image: alpine:3.20
+    container_name: reps-ddns
+    restart: unless-stopped
+    profiles: ["ddns"]
+    environment:
+      DOMENESHOP_TOKEN: ${DOMENESHOP_TOKEN:-}
+      DOMENESHOP_SECRET: ${DOMENESHOP_SECRET:-}
+      DDNS_HOSTNAME: ${DDNS_HOSTNAME:-repstracker.no}
+    command:
+      - sh
+      - -c
+      - |
+        apk add --no-cache curl >/dev/null 2>&1
+        while true; do
+          IP=$$(curl -fsS https://api.ipify.org)
+          if curl -fsS -o /dev/null "https://$${DOMENESHOP_TOKEN}:$${DOMENESHOP_SECRET}@api.domeneshop.no/v0/dyndns/update?hostname=$${DDNS_HOSTNAME}&myip=$${IP}"; then
+            echo "$$(date -Iseconds) ddns ok -> $${IP}"
+          else
+            echo "$$(date -Iseconds) ddns update FAILED"
+          fi
+          sleep 300
+        done
 
 volumes:
   postgres_data:
