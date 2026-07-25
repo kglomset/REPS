@@ -378,20 +378,33 @@ public class WorkoutService {
                 .build();
     }
 
+    /**
+     * The sets logged for this exercise in the user's most recent *completed*
+     * session that included it — used to pre-fill the "Prev" column. Scoped to
+     * the exercise (not the template), so it still works after the program is
+     * edited/regenerated or when the same lift appears in a different workout.
+     */
     private List<ExerciseSetResponse> getPreviousSets(WorkoutSession current, SessionExercise se) {
-        if (current.getTemplate() == null) return List.of();
-        List<WorkoutSession> previous = sessionRepo.findCompletedByUserAndTemplate(
-                current.getUser().getId(), current.getTemplate().getId());
+        List<ExerciseSet> history = setRepo.findHistoryForUserAndExercise(
+                current.getUser().getId(), se.getExercise().getId());
+        if (history.isEmpty()) return List.of();
 
-        return previous.stream()
-                .filter(s -> !s.getId().equals(current.getId()))
-                .findFirst()
-                .map(prev -> prev.getExercises().stream()
-                        .filter(prevEx -> prevEx.getExercise().getId().equals(se.getExercise().getId()))
-                        .findFirst()
-                        .map(prevEx -> prevEx.getSets().stream().map(this::toSetResponse).toList())
-                        .orElse(List.of()))
-                .orElse(List.of());
+        // history is ordered by session start ASC — group by session, keep the
+        // most recent one (excluding the current, in-progress session).
+        Map<Long, List<ExerciseSet>> bySession = new LinkedHashMap<>();
+        for (ExerciseSet s : history) {
+            Long sid = s.getSessionExercise().getSession().getId();
+            if (sid.equals(current.getId())) continue;
+            bySession.computeIfAbsent(sid, k -> new ArrayList<>()).add(s);
+        }
+        if (bySession.isEmpty()) return List.of();
+
+        List<ExerciseSet> lastSessionSets = null;
+        for (List<ExerciseSet> sets : bySession.values()) lastSessionSets = sets; // last = most recent
+        return lastSessionSets.stream()
+                .sorted(Comparator.comparing(ExerciseSet::getSetNumber))
+                .map(this::toSetResponse)
+                .toList();
     }
 
     private ExerciseSetResponse toSetResponse(ExerciseSet set) {

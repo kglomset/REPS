@@ -85,14 +85,16 @@ public class ProgramService {
                 if (ex.getExerciseId() == null) continue;
                 Exercise exercise = exerciseRepo.findById(ex.getExerciseId()).orElse(null);
                 if (exercise == null) continue;
-                int reps = ex.getReps() != null ? ex.getReps() : 10;
+                // Store a rep RANGE (goal-based) so double-progression has room:
+                // add reps up to repsMax, then add weight and reset to repsMin.
+                int[] goalReps = repRange(program.getGoal());
                 template.getExercises().add(WorkoutTemplateExercise.builder()
                         .template(template)
                         .exercise(exercise)
                         .exerciseOrder(order++)
                         .sets(ex.getSets() != null ? ex.getSets() : 3)
-                        .repsMin(reps)
-                        .repsMax(reps)
+                        .repsMin(goalReps[0])
+                        .repsMax(goalReps[1])
                         .restSeconds(defaultRest)
                         .trainingMethod(ex.getTrainingMethod() != null
                                 ? TrainingMethod.valueOf(ex.getTrainingMethod())
@@ -188,14 +190,15 @@ public class ProgramService {
                     if (ex.getExerciseId() == null) continue;
                     Exercise exercise = exerciseRepo.findById(ex.getExerciseId()).orElse(null);
                     if (exercise == null) continue;
-                    int reps = ex.getReps() != null ? ex.getReps() : 10;
+                    // Store a rep RANGE (goal-based) so double-progression has room.
+                    int[] goalReps = repRange(program.getGoal());
                     template.getExercises().add(WorkoutTemplateExercise.builder()
                             .template(template)
                             .exercise(exercise)
                             .exerciseOrder(order++)
                             .sets(ex.getSets() != null ? ex.getSets() : 3)
-                            .repsMin(reps)
-                            .repsMax(reps)
+                            .repsMin(goalReps[0])
+                            .repsMax(goalReps[1])
                             .restSeconds(defaultRest)
                             .trainingMethod(ex.getTrainingMethod() != null
                                     ? TrainingMethod.valueOf(ex.getTrainingMethod())

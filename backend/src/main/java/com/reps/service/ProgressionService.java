@@ -180,9 +180,10 @@ public class ProgressionService {
         List<Snapshot> window = lastN(snapshots, HISTORY_WINDOW);
         Snapshot latest = window.get(window.size() - 1);
 
-        // R1 — INCREASE_WEIGHT
+        // R1 — INCREASE_WEIGHT (only when the TOP of the rep range is reached on
+        // every working set; below that, the default path is "add reps")
         if (toppedOut(latest, max, targetSets)) {
-            return increaseWeightSuggestion(latest, max, lowerBodyCompound);
+            return increaseWeightSuggestion(latest, min, max, lowerBodyCompound);
         }
 
         if (window.size() >= MIN_SNAPSHOTS_DELOAD) {
@@ -213,21 +214,21 @@ public class ProgressionService {
         return latest.avgRpe() == null || latest.avgRpe() <= RPE_GATE;
     }
 
-    /** R2: reps strictly falling over the last 3 sessions at the same weight,
-     *  or ≥ half the working sets under repsMin in the latest session. */
+    /**
+     * R2: total reps strictly falling across the last 3 sessions at the SAME
+     * working weight — a real cross-session decline.
+     *
+     * Note: reps naturally taper across sets within a session (set 1 = 8,
+     * set 2 = 7 is expected when training near failure), and a single set
+     * dipping below repsMin is fatigue, not regression — so neither is treated
+     * as a deload trigger. (repsMin is retained for signature stability / future
+     * rules but intentionally unused here.)
+     */
     boolean isRegressing(List<Snapshot> window, int repsMin) {
         List<Snapshot> last3 = lastN(window, MIN_SNAPSHOTS_DELOAD);
-        Snapshot latest = last3.get(last3.size() - 1);
-
-        boolean fallingAtSameWeight = last3.size() >= MIN_SNAPSHOTS_DELOAD
-                && sameWorkingWeight(last3)
+        if (last3.size() < MIN_SNAPSHOTS_DELOAD) return false;
+        return sameWorkingWeight(last3)
                 && strictlyDecreasing(last3.stream().map(Snapshot::totalReps).toList());
-
-        List<Integer> reps = latest.workingSetReps();
-        long belowMin = reps.stream().filter(r -> r < repsMin).count();
-        boolean missedMinimums = !reps.isEmpty() && belowMin * 2 >= reps.size();
-
-        return fallingAtSameWeight || missedMinimums;
     }
 
     /** R3: last 4 snapshots — same weight, total reps flat (±1), e1RM not rising. */
@@ -244,17 +245,18 @@ public class ProgressionService {
         return first != null && last != null && last.compareTo(first) <= 0;
     }
 
-    private ProgressionSuggestionResponse increaseWeightSuggestion(Snapshot latest, int repsMax,
+    private ProgressionSuggestionResponse increaseWeightSuggestion(Snapshot latest, int repsMin, int repsMax,
                                                                    boolean lowerBodyCompound) {
         BigDecimal weight = latest.workingWeight();
         int sets = latest.workingSetReps().size();
-        String hit = "Hit " + sets + "×" + repsMax;
+        String hit = "Hit " + sets + "×" + repsMax + " (top of range)";
 
         if (weight == null || weight.signum() <= 0) {
             // Bodyweight: informational only — no target weight to pre-fill
             return ProgressionSuggestionResponse.builder()
                     .type(SuggestionType.INCREASE_WEIGHT)
-                    .message(hit + " — time to add external weight or a harder variation.")
+                    .message(hit + " — add external weight or a harder variation, then rebuild from "
+                            + repsMin + " reps.")
                     .build();
         }
 
@@ -262,7 +264,8 @@ public class ProgressionService {
                 .setScale(2, RoundingMode.HALF_UP);
         return ProgressionSuggestionResponse.builder()
                 .type(SuggestionType.INCREASE_WEIGHT)
-                .message(hit + " at " + formatKg(weight) + " kg last session — ready to go up.")
+                .message(hit + " at " + formatKg(weight) + " kg — go up to " + formatKg(suggested)
+                        + " kg and start back at " + repsMin + " reps.")
                 .suggestedWeightKg(suggested)
                 .build();
     }

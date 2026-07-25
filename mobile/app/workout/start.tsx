@@ -1690,13 +1690,7 @@ function SwapExerciseModal({ current, existingIds, onSelect, onClose }: {
             const similar = sharesPrimary(ex);
             return (
               <TouchableOpacity key={ex.id}
-                onPress={() => {
-                  Alert.alert('Swap exercise',
-                    `Replace ${current.exercise.name} with ${ex.name}? Any sets logged for it will be cleared.`, [
-                    { text: 'Cancel', style: 'cancel' },
-                    { text: 'Swap', onPress: () => onSelect(ex.id) },
-                  ]);
-                }}
+                onPress={() => onSelect(ex.id)}
                 style={{ flexDirection: 'row', alignItems: 'center',
                   padding: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.border }}>
                 <View style={{ flex: 1 }}>
