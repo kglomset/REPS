@@ -21,8 +21,10 @@ RUN npx expo export --platform web
 # reference them from <head>. (app.json uses web.output "single", so +html.tsx
 # is not applied — inject the tags into the built index.html instead.)
 RUN cp -r public/* dist/ 2>/dev/null || true \
- && sed -i 's|</head>|<link rel="manifest" href="/manifest.webmanifest"/><link rel="apple-touch-icon" href="/apple-touch-icon.png"/><meta name="theme-color" content="#4F46E5"/></head>|' dist/index.html \
- && grep -q 'manifest.webmanifest' dist/index.html || (echo "manifest link injection failed" && exit 1)
+ && sed -i 's|</head>|<link rel="manifest" href="/manifest.webmanifest"/><link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png"/><link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png"/><link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png"/><link rel="apple-touch-icon" href="/apple-touch-icon.png"/><meta name="theme-color" content="#4F46E5"/></head>|' dist/index.html \
+ && grep -q 'manifest.webmanifest' dist/index.html \
+ && test -f dist/icon-512.png && test -f dist/manifest.webmanifest \
+ || (echo "PWA icon/manifest injection failed" && exit 1)
 
 # ── Stage 2: serve with Nginx ─────────────────────────────────────────────────
 FROM nginx:stable-alpine

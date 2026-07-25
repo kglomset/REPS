@@ -6,27 +6,18 @@
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal",
-      "android": {
-        "buildType": "apk"
-      }
+      "distribution": "internal"
     },
     "preview": {
       "distribution": "internal",
-      "android": {
-        "buildType": "apk"
-      },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://YOUR-BACKEND-URL/api"
+        "EXPO_PUBLIC_API_URL": "https://repstracker.no/api"
       }
     },
     "production": {
       "autoIncrement": true,
-      "android": {
-        "buildType": "app-bundle"
-      },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://YOUR-BACKEND-URL/api"
+        "EXPO_PUBLIC_API_URL": "https://repstracker.no/api"
       }
     }
   },

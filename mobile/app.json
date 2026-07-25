@@ -10,13 +10,6 @@
       "supportsTablet": false,
       "bundleIdentifier": "com.reps.training"
     },
-    "android": {
-      "package": "com.reps.training",
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/reps-glyph.png",
-        "backgroundColor": "#FFFFFF"
-      }
-    },
     "web": {
       "bundler": "metro",
       "output": "single",
