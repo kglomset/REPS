@@ -4,9 +4,21 @@ import { WorkoutSessionResponse, ExerciseSetResponse, WorkoutTemplateResponse } 
 import { BuilderExercisePayload } from './programs';
 
 export const workoutsApi = {
-  startSession: (templateId: number) =>
+  // `date` (yyyy-MM-dd) backdates the session for retrospective logging.
+  startSession: (templateId: number, date?: string) =>
     client
-      .post<WorkoutSessionResponse>(ENDPOINTS.workouts.sessions, { templateId })
+      .post<WorkoutSessionResponse>(ENDPOINTS.workouts.sessions, {
+        templateId,
+        ...(date ? { date } : {}),
+      })
+      .then((r) => r.data),
+
+  swapSessionExercise: (sessionId: number, sessionExerciseId: number, exerciseId: number) =>
+    client
+      .patch<WorkoutSessionResponse>(
+        ENDPOINTS.workouts.swap(sessionId, sessionExerciseId),
+        { exerciseId }
+      )
       .then((r) => r.data),
 
   // ── Standalone workouts (not tied to a program or calendar) ──────────────

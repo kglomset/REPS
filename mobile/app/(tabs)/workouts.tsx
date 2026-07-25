@@ -1,6 +1,6 @@
 import React from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity, RefreshControl, Alert,
+  View, Text, ScrollView, TouchableOpacity, RefreshControl, Alert, Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -158,9 +158,9 @@ export default function WorkoutsScreen() {
           <ProgramDetailsCard program={program} sessions={sessions ?? []} />
         )}
 
-        {/* Workout log — calendar to browse any past day */}
-        {sessions && sessions.length > 0 && (
-          <WorkoutCalendar sessions={sessions} />
+        {/* Workout log — calendar to browse any past day (and log retrospectively) */}
+        {((sessions && sessions.length > 0) || program) && (
+          <WorkoutCalendar sessions={sessions ?? []} program={program ?? null} />
         )}
 
         {/* Standalone sessions — not tied to a program or calendar day */}
@@ -456,8 +456,12 @@ function StatTile({ label, value, icon }: { label: string; value: string; icon: 
 
 // ─── Workout log calendar ─────────────────────────────────────────────────────
 
-function WorkoutCalendar({ sessions }: { sessions: WorkoutSessionResponse[] }) {
+function WorkoutCalendar({ sessions, program }: {
+  sessions: WorkoutSessionResponse[];
+  program: ProgramResponse | null;
+}) {
   const [month, setMonth] = React.useState(startOfMonth(new Date()));
+  const [retroDate, setRetroDate] = React.useState<Date | null>(null);
 
   // Map each day -> a completed session (latest that day)
   const byDay: Record<string, WorkoutSessionResponse> = {};
@@ -477,6 +481,9 @@ function WorkoutCalendar({ sessions }: { sessions: WorkoutSessionResponse[] }) {
 
   const today = new Date();
   const isToday = (d: Date) => d.toDateString() === today.toDateString();
+  const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const isFuture = (d: Date) => d > startOfToday;
+  const canRetro = (program?.workoutTemplates?.length ?? 0) > 0;
   const WEEK = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
   return (
@@ -518,16 +525,26 @@ function WorkoutCalendar({ sessions }: { sessions: WorkoutSessionResponse[] }) {
           if (!d) return <View key={i} style={{ width: `${100 / 7}%`, height: 40 }} />;
           const sess = byDay[format(d, 'yyyy-MM-dd')];
           const has = !!sess;
+          // Empty, non-future day + an active program → tap to log retrospectively
+          const emptyPast = !has && !isFuture(d) && canRetro;
           return (
             <View key={i} style={{ width: `${100 / 7}%`, height: 40,
               alignItems: 'center', justifyContent: 'center' }}>
               <TouchableOpacity
-                disabled={!has}
-                onPress={() => sess && router.push({ pathname: '/workout/view', params: { sessionId: String(sess.id) } })}
+                disabled={!has && !emptyPast}
+                onPress={() => {
+                  if (sess) {
+                    router.push({ pathname: '/workout/view', params: { sessionId: String(sess.id) } });
+                  } else if (emptyPast) {
+                    setRetroDate(d);
+                  }
+                }}
                 style={{ width: 32, height: 32, borderRadius: 16,
                   alignItems: 'center', justifyContent: 'center',
                   backgroundColor: has ? Colors.primary : 'transparent',
-                  borderWidth: isToday(d) && !has ? 1.5 : 0, borderColor: Colors.primary }}>
+                  borderWidth: (isToday(d) && !has) || emptyPast ? 1.5 : 0,
+                  borderStyle: emptyPast && !isToday(d) ? 'dashed' : 'solid',
+                  borderColor: emptyPast && !isToday(d) ? Colors.border : Colors.primary }}>
                 <Text style={{ fontSize: FontSize.xs,
                   color: has ? Colors.textInverse : isToday(d) ? Colors.primary : Colors.textPrimary,
                   fontWeight: has || isToday(d) ? FontWeight.bold : FontWeight.regular }}>
@@ -543,8 +560,81 @@ function WorkoutCalendar({ sessions }: { sessions: WorkoutSessionResponse[] }) {
         <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: Colors.primary }} />
         <Text style={{ fontSize: 10, color: Colors.textMuted }}>
           Days with a completed workout · tap to view
+          {canRetro ? ' · tap an empty past day to log one' : ''}
         </Text>
       </View>
+
+      {/* Retrospective log — pick a program workout for the chosen past date */}
+      {retroDate && program && (
+        <RetroLogModal
+          date={retroDate}
+          program={program}
+          onClose={() => setRetroDate(null)}
+        />
+      )}
     </View>
+  );
+}
+
+// ─── Retrospective log picker ─────────────────────────────────────────────────
+// Tapping an empty past day opens this; picking a workout from the active
+// program opens the normal logging screen, backdated to that date.
+
+function RetroLogModal({ date, program, onClose }: {
+  date: Date;
+  program: ProgramResponse;
+  onClose: () => void;
+}) {
+  const dateStr = format(date, 'yyyy-MM-dd');
+  const templates = [...program.workoutTemplates].sort((a, b) => a.dayIndex - b.dayIndex);
+
+  return (
+    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
+      <TouchableOpacity activeOpacity={1} onPress={onClose}
+        style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' }}>
+        <TouchableOpacity activeOpacity={1} style={{ backgroundColor: Colors.surface,
+          borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl,
+          padding: Spacing.lg, paddingBottom: 32 }}>
+          <Text style={{ fontSize: FontSize.lg, fontWeight: FontWeight.bold,
+            color: Colors.textPrimary }}>Log a past workout</Text>
+          <Text style={{ fontSize: FontSize.sm, color: Colors.textSecondary,
+            marginBottom: Spacing.md }}>
+            {format(date, 'EEEE, MMM d')} · pick a workout from {program.name}
+          </Text>
+
+          {templates.map((t) => (
+            <TouchableOpacity key={t.id}
+              onPress={() => {
+                onClose();
+                router.push({
+                  pathname: '/workout/start',
+                  params: { templateId: String(t.id), date: dateStr },
+                });
+              }}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.md,
+                paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: Colors.border }}>
+              <View style={{ width: 40, height: 40, borderRadius: Radius.md,
+                backgroundColor: Colors.primaryTint, alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ fontSize: FontSize.xs, color: Colors.primary,
+                  fontWeight: FontWeight.bold }}>{DAY_LABELS[t.dayIndex]}</Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: FontSize.md, color: Colors.textPrimary,
+                  fontWeight: FontWeight.medium }}>{t.name}</Text>
+                <Text style={{ fontSize: FontSize.xs, color: Colors.textMuted }}>
+                  {t.exercises.length} exercises
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
+            </TouchableOpacity>
+          ))}
+
+          <TouchableOpacity onPress={onClose}
+            style={{ alignItems: 'center', paddingTop: Spacing.md }}>
+            <Text style={{ color: Colors.textSecondary, fontSize: FontSize.sm }}>Cancel</Text>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </TouchableOpacity>
+    </Modal>
   );
 }

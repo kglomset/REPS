@@ -8,7 +8,7 @@ interface WorkoutState {
   restTimerSeconds: number;
   restTimerRemaining: number;
 
-  startSession: (templateId: number) => Promise<WorkoutSessionResponse>;
+  startSession: (templateId: number, date?: string) => Promise<WorkoutSessionResponse>;
   setActiveSession: (session: WorkoutSessionResponse | null) => void;
 
   startRestTimer: (seconds: number) => void;
@@ -22,8 +22,8 @@ export const useWorkoutStore = create<WorkoutState>((set) => ({
   restTimerSeconds: 120,
   restTimerRemaining: 0,
 
-  startSession: async (templateId) => {
-    const session = await workoutsApi.startSession(templateId);
+  startSession: async (templateId, date) => {
+    const session = await workoutsApi.startSession(templateId, date);
     set({ activeSession: session });
     return session;
   },

@@ -44,10 +44,41 @@ interface WorkoutSummary {
 // Total flex = 1 + 1 + 2 + 3 + 3 = 10
 const COL = { set: 1, check: 1, prev: 2, kg: 3, reps: 3 };
 
+// Build the editable row state for one session exercise (fresh rows from the
+// target set count, previous-session hints, and any already-logged sets).
+function buildExState(ex: SessionExerciseResponse): ExState {
+  const count = ex.targetSets ?? 3;
+  const rows: SetRow[] = Array.from({ length: count }, (_, i) => {
+    const prev = ex.previousSets[i];
+    return {
+      weight:     '',
+      reps:       '',
+      completed:  false,
+      prevWeight: prev?.weightKg?.toString() ?? '',
+      prevReps:   prev?.reps?.toString()    ?? '',
+    };
+  });
+  ex.sets.forEach((s) => {
+    const row = rows[s.setNumber - 1];
+    if (row) {
+      row.weight    = s.weightKg?.toString() ?? '';
+      row.reps      = s.reps.toString();
+      row.completed = true;
+      row.loggedId  = s.id;
+    }
+  });
+  return {
+    rows,
+    method:          ex.trainingMethod,
+    restSeconds:     ex.restSeconds ?? 120,
+    supersetGroupId: ex.supersetGroupId ?? null,
+  };
+}
+
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function ActiveWorkoutScreen() {
-  const { templateId, sessionId } = useLocalSearchParams<{ templateId: string; sessionId: string }>();
+  const { templateId, sessionId, date } = useLocalSearchParams<{ templateId: string; sessionId: string; date: string }>();
   const queryClient = useQueryClient();
   const {
     activeSession, startSession, setActiveSession,
@@ -62,6 +93,7 @@ export default function ActiveWorkoutScreen() {
   const [summary, setSummary]               = useState<WorkoutSummary | null>(null);
   const [cancelConfirm, setCancelConfirm]   = useState(false);
   const [supersetPickerForId, setSupersetPickerForId] = useState<number | null>(null);
+  const [swapForId, setSwapForId]           = useState<number | null>(null);
   const [exStates, setExStates]             = useState<Record<number, ExState>>({});
   const [elapsed, setElapsed]               = useState(0);
   const elapsedRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -83,9 +115,10 @@ export default function ActiveWorkoutScreen() {
         .then((s) => setActiveSession(s))
         .finally(() => setIsStarting(false));
     } else if (templateId) {
-      // Start a brand-new session from a template
+      // Start a brand-new session from a template.
+      // `date` (yyyy-MM-dd) backdates it for retrospective logging.
       setIsStarting(true);
-      startSession(Number(templateId)).finally(() => setIsStarting(false));
+      startSession(Number(templateId), date || undefined).finally(() => setIsStarting(false));
     }
   }, []);
 
@@ -131,36 +164,29 @@ export default function ActiveWorkoutScreen() {
     const init: Record<number, ExState> = {};
     for (const ex of activeSession.exercises) {
       if (init[ex.id]) continue;
-      const count = ex.targetSets ?? 3;
-      const rows: SetRow[] = Array.from({ length: count }, (_, i) => {
-        const prev = ex.previousSets[i];
-        return {
-          weight:     '',   // empty until user types or checkmark pressed
-          reps:       '',
-          completed:  false,
-          prevWeight: prev?.weightKg?.toString() ?? '',
-          prevReps:   prev?.reps?.toString()    ?? '',
-        };
-      });
-      // Overlay already-logged sets (e.g. resumed session)
-      ex.sets.forEach((s) => {
-        const row = rows[s.setNumber - 1];
-        if (row) {
-          row.weight    = s.weightKg?.toString() ?? '';
-          row.reps      = s.reps.toString();
-          row.completed = true;
-          row.loggedId  = s.id;
-        }
-      });
-      init[ex.id] = {
-        rows,
-        method:          ex.trainingMethod,
-        restSeconds:     ex.restSeconds ?? 120,
-        supersetGroupId: ex.supersetGroupId ?? null,
-      };
+      init[ex.id] = buildExState(ex);
     }
     setExStates(init);
   }, [activeSession?.id]);
+
+  // Swap an exercise for a different one (this session only). The session
+  // exercise id is stable, so we refresh just that entry's row state.
+  const handleSwap = useCallback(async (sessionExerciseId: number, newExerciseId: number) => {
+    if (!activeSession) return;
+    setSwapForId(null);
+    try {
+      const updated = await workoutsApi.swapSessionExercise(
+        activeSession.id, sessionExerciseId, newExerciseId);
+      setActiveSession(updated);
+      setOrderedExercises([...updated.exercises]);
+      const swapped = updated.exercises.find((e) => e.id === sessionExerciseId);
+      if (swapped) {
+        setExStates((prev) => ({ ...prev, [sessionExerciseId]: buildExState(swapped) }));
+      }
+    } catch (e: any) {
+      Alert.alert('Swap failed', e.message);
+    }
+  }, [activeSession]);
 
   // ── State helpers ───────────────────────────────────────────────────────────
 
@@ -493,6 +519,7 @@ export default function ActiveWorkoutScreen() {
                 allStates={exStates}
                 onOpenSupersetPicker={() => setSupersetPickerForId(group[0].id)}
                 onRemoveFromGroup={() => handleRemoveFromGroup(group[0].id)}
+                onOpenSwap={() => setSwapForId(group[0].id)}
                 suggestion={visibleSuggestions[group[0].id]}
                 onOpenSuggestion={() => setSuggestionFor(group[0])}
               />
@@ -531,6 +558,17 @@ export default function ActiveWorkoutScreen() {
         existingIds={activeSession.exercises.map((e) => e.exercise.id)}
         onClose={() => setAddExVisible(false)}
       />
+      {swapForId !== null && (() => {
+        const cur = activeSession.exercises.find((e) => e.id === swapForId);
+        return cur ? (
+          <SwapExerciseModal
+            current={cur}
+            existingIds={activeSession.exercises.map((e) => e.exercise.id)}
+            onSelect={(newExerciseId) => handleSwap(swapForId, newExerciseId)}
+            onClose={() => setSwapForId(null)}
+          />
+        ) : null;
+      })()}
       {supersetPickerForId !== null && (
         <SupersetPickerModal
           visible
@@ -689,7 +727,7 @@ function MuscleChips({ muscles }: { muscles: SessionExerciseResponse['exercise']
 
 function ExerciseBlock({ ex, exState, onUpdateState, onSetComplete,
   allSessionExercises, allStates, onOpenSupersetPicker, onRemoveFromGroup,
-  suggestion, onOpenSuggestion }: {
+  onOpenSwap, suggestion, onOpenSuggestion }: {
   ex: SessionExerciseResponse;
   exState: ExState | undefined;
   onUpdateState: (p: Partial<ExState>) => void;
@@ -698,6 +736,7 @@ function ExerciseBlock({ ex, exState, onUpdateState, onSetComplete,
   allStates: Record<number, ExState>;
   onOpenSupersetPicker: () => void;
   onRemoveFromGroup: () => void;
+  onOpenSwap: () => void;
   suggestion?: ProgressionSuggestion;
   onOpenSuggestion?: () => void;
 }) {
@@ -768,6 +807,7 @@ function ExerciseBlock({ ex, exState, onUpdateState, onSetComplete,
         onClose={() => setMenuVisible(false)}
         onGroupWith={() => { setMenuVisible(false); onOpenSupersetPicker(); }}
         onRemoveFromGroup={() => { setMenuVisible(false); onRemoveFromGroup(); }}
+        onSwap={() => { setMenuVisible(false); onOpenSwap(); }}
       />
     </View>
   );
@@ -1263,12 +1303,13 @@ function RestInput({ value, onChange }: { value: number; onChange: (v: number) =
 
 // ─── Exercise menu ────────────────────────────────────────────────────────────
 
-function ExerciseMenu({ visible, inGroup, onClose, onGroupWith, onRemoveFromGroup }: {
+function ExerciseMenu({ visible, inGroup, onClose, onGroupWith, onRemoveFromGroup, onSwap }: {
   visible: boolean;
   inGroup: boolean;
   onClose: () => void;
   onGroupWith: () => void;
   onRemoveFromGroup: () => void;
+  onSwap: () => void;
 }) {
   return (
     <Modal visible={visible} transparent animationType="fade">
@@ -1277,6 +1318,14 @@ function ExerciseMenu({ visible, inGroup, onClose, onGroupWith, onRemoveFromGrou
         onPress={onClose} activeOpacity={1}>
         <View style={{ backgroundColor: Colors.surface, borderTopLeftRadius: Radius.xl,
           borderTopRightRadius: Radius.xl, padding: Spacing.md, paddingBottom: 32 }}>
+          <TouchableOpacity onPress={onSwap}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.md,
+              padding: Spacing.md, borderRadius: Radius.md }}>
+            <Ionicons name="swap-horizontal" size={20} color={Colors.textPrimary} />
+            <Text style={{ fontSize: FontSize.md, color: Colors.textPrimary }}>
+              Swap exercise…
+            </Text>
+          </TouchableOpacity>
           {!inGroup && (
             <TouchableOpacity onPress={onGroupWith}
               style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.md,
@@ -1570,6 +1619,108 @@ function AddExerciseModal({ visible, sessionId, existingIds, onClose }: {
               <Ionicons name="add-circle-outline" size={22} color={Colors.primary} />
             </TouchableOpacity>
           ))}
+        </ScrollView>
+      </SafeAreaView>
+    </Modal>
+  );
+}
+
+// ─── Swap exercise modal ──────────────────────────────────────────────────────
+// Pick a replacement for one exercise. Exercises sharing a primary muscle group
+// are surfaced first (and tagged "Similar"); the rest follow alphabetically.
+
+function SwapExerciseModal({ current, existingIds, onSelect, onClose }: {
+  current: SessionExerciseResponse;
+  existingIds: number[];
+  onSelect: (exerciseId: number) => void;
+  onClose: () => void;
+}) {
+  const [search, setSearch] = useState('');
+  const { data: allExercises } = useQuery({
+    queryKey: ['exercises'],
+    queryFn: exercisesApi.list,
+  });
+
+  const currentPrimary = new Set(
+    current.exercise.muscles.filter((m) => m.role === 'PRIMARY').map((m) => m.muscleGroupId)
+  );
+  const sharesPrimary = (ex: { muscles: SessionExerciseResponse['exercise']['muscles'] }) =>
+    ex.muscles.some((m) => m.role === 'PRIMARY' && currentPrimary.has(m.muscleGroupId));
+
+  const q = search.toLowerCase();
+  const candidates = (allExercises ?? []).filter(
+    (e) => e.id !== current.exercise.id &&
+      !existingIds.includes(e.id) &&
+      e.name.toLowerCase().includes(q)
+  );
+  const sorted = [...candidates].sort((a, b) => {
+    const rank = (Number(!sharesPrimary(a))) - (Number(!sharesPrimary(b)));
+    return rank !== 0 ? rank : a.name.localeCompare(b.name);
+  });
+
+  return (
+    <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: Colors.surface }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center',
+          padding: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.border }}>
+          <TouchableOpacity onPress={onClose} style={{ padding: 4, marginRight: Spacing.sm }}>
+            <Ionicons name="close" size={22} color={Colors.textPrimary} />
+          </TouchableOpacity>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: FontSize.md, fontWeight: FontWeight.semibold,
+              color: Colors.textPrimary }}>Swap exercise</Text>
+            <Text style={{ fontSize: FontSize.xs, color: Colors.textSecondary }}>
+              Replacing {current.exercise.name} · this workout only
+            </Text>
+          </View>
+        </View>
+        <View style={{ paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8,
+            backgroundColor: Colors.surfaceMuted, borderRadius: Radius.md,
+            paddingHorizontal: 12, borderWidth: 1, borderColor: Colors.border }}>
+            <Ionicons name="search" size={16} color={Colors.textMuted} />
+            <TextInput value={search} onChangeText={setSearch}
+              placeholder="Search exercises…" placeholderTextColor={Colors.textMuted}
+              style={{ flex: 1, paddingVertical: 10, fontSize: FontSize.md,
+                color: Colors.textPrimary }} />
+          </View>
+        </View>
+        <ScrollView>
+          {sorted.map((ex) => {
+            const similar = sharesPrimary(ex);
+            return (
+              <TouchableOpacity key={ex.id}
+                onPress={() => {
+                  Alert.alert('Swap exercise',
+                    `Replace ${current.exercise.name} with ${ex.name}? Any sets logged for it will be cleared.`, [
+                    { text: 'Cancel', style: 'cancel' },
+                    { text: 'Swap', onPress: () => onSelect(ex.id) },
+                  ]);
+                }}
+                style={{ flexDirection: 'row', alignItems: 'center',
+                  padding: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.border }}>
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Text style={{ fontSize: FontSize.md, color: Colors.textPrimary,
+                      fontWeight: FontWeight.medium }}>{ex.name}</Text>
+                    {similar && (
+                      <View style={{ backgroundColor: Colors.primaryTint, borderRadius: Radius.full,
+                        paddingHorizontal: 8, paddingVertical: 2 }}>
+                        <Text style={{ fontSize: 10, color: Colors.primary,
+                          fontWeight: FontWeight.semibold }}>Similar</Text>
+                      </View>
+                    )}
+                  </View>
+                  <MuscleChips muscles={ex.muscles} />
+                </View>
+                <Ionicons name="swap-horizontal" size={20} color={Colors.primary} />
+              </TouchableOpacity>
+            );
+          })}
+          {sorted.length === 0 && (
+            <Text style={{ fontSize: FontSize.sm, color: Colors.textSecondary,
+              textAlign: 'center', marginTop: Spacing.lg }}>No exercises found.</Text>
+          )}
         </ScrollView>
       </SafeAreaView>
     </Modal>

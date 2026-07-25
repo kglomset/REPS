@@ -8,7 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
-import { format, getISOWeek, getISOWeekYear } from 'date-fns';
+import { format, getISOWeek, getISOWeekYear, startOfWeek, subWeeks, addDays, parseISO } from 'date-fns';
 import Svg, { Path, Defs, LinearGradient, Stop } from 'react-native-svg';
 import { programsApi } from '@/services/api/programs';
 import { workoutsApi } from '@/services/api/workouts';
@@ -27,12 +27,30 @@ interface WeightTrend {
   deltaKg: number;
 }
 
+/** Mean body weight of all logs inside the Mon–Sun week starting at weekStart,
+ *  or null if there are no logs in that window. */
+function meanOfWeek(history: BodyWeightResponse[], weekStart: Date): number | null {
+  const weekEnd = addDays(weekStart, 7); // exclusive
+  const inWeek = history.filter((h) => {
+    const d = parseISO(h.logDate);
+    return d >= weekStart && d < weekEnd;
+  });
+  if (inWeek.length === 0) return null;
+  return inWeek.reduce((a, h) => a + h.weightKg, 0) / inWeek.length;
+}
+
+/** Trend = mean of the current calendar week (Mon–Sun) vs mean of the previous
+ *  week. All logs within each week are averaged (1 log → that log, 2 → their
+ *  mean, etc.); logs outside the week aren't considered. Needs at least one log
+ *  in each week to produce a comparison. */
 function computeWeightTrend(history: BodyWeightResponse[]): WeightTrend {
-  if (history.length < 2) return { direction: 'none', deltaKg: 0 };
-  // Compare latest entry to the previous one
-  const latest  = history[history.length - 1];
-  const prev    = history[history.length - 2];
-  const deltaKg = latest.weightKg - prev.weightKg;
+  if (history.length === 0) return { direction: 'none', deltaKg: 0 };
+  const thisWeekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
+  const lastWeekStart = subWeeks(thisWeekStart, 1);
+  const curMean  = meanOfWeek(history, thisWeekStart);
+  const prevMean = meanOfWeek(history, lastWeekStart);
+  if (curMean == null || prevMean == null) return { direction: 'none', deltaKg: 0 };
+  const deltaKg = curMean - prevMean;
   const direction: TrendDirection =
     deltaKg > 0.05 ? 'up' : deltaKg < -0.05 ? 'down' : 'stable';
   return { direction, deltaKg };

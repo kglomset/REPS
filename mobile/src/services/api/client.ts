@@ -29,10 +29,37 @@ client.interceptors.request.use(async (config: InternalAxiosRequestConfig) => {
   return config;
 });
 
-// Normalise errors
+// Auth-expiry handling + error normalisation.
+// A 401 means the JWT is missing/expired. Previously the app kept showing the
+// user as "logged in" (auth state is restored from the stored user object, not
+// from token validity), so data queries silently failed until a manual
+// logout/login minted a fresh token. Now any 401 signs the user out and sends
+// them to the login screen automatically.
+let handlingUnauthorized = false;
+
 client.interceptors.response.use(
   (res) => res,
-  (err) => {
+  async (err) => {
+    const status = err?.response?.status;
+    const url: string = err?.config?.url ?? '';
+    // Don't treat a failed login/register attempt as a session expiry.
+    const isAuthCall = url.includes('/auth/login') || url.includes('/auth/register');
+
+    if (status === 401 && !isAuthCall && !handlingUnauthorized) {
+      handlingUnauthorized = true;
+      try {
+        const { useAuthStore } = await import('@/store/useAuthStore');
+        await useAuthStore.getState().logout();
+        const { router } = await import('expo-router');
+        router.replace('/(auth)/login');
+      } catch {
+        // best-effort; fall through to error normalisation
+      } finally {
+        // allow future 401s (e.g. next session) to be handled again
+        setTimeout(() => { handlingUnauthorized = false; }, 1000);
+      }
+    }
+
     const msg =
       err?.response?.data?.message ??
       err?.response?.data?.errors ??

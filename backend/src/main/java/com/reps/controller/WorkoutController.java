@@ -89,6 +89,19 @@ public class WorkoutController {
         return workoutService.logSet(principal.getId(), sessionId, exerciseId, req);
     }
 
+    /** Swap a session's exercise for a different one (this session only).
+     *  Body: { "exerciseId": 42 } */
+    @PatchMapping("/sessions/{sessionId}/exercises/{sessionExerciseId}/swap")
+    public WorkoutSessionResponse swapExercise(@AuthenticationPrincipal UserPrincipal principal,
+                                               @PathVariable Long sessionId,
+                                               @PathVariable Long sessionExerciseId,
+                                               @RequestBody Map<String, Object> body) {
+        Long exerciseId = body.get("exerciseId") != null
+                ? ((Number) body.get("exerciseId")).longValue() : null;
+        return workoutService.swapSessionExercise(
+                principal.getId(), sessionId, sessionExerciseId, exerciseId);
+    }
+
     /** Update a workout template (rename and/or change scheduled day). */
     @PatchMapping("/templates/{templateId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)

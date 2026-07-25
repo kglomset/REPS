@@ -42,10 +42,18 @@ public class WorkoutService {
             throw new NoSuchElementException("Template not found");
         }
 
+        // Retrospective logging: if a (non-future) date is supplied, anchor the
+        // session to noon that day so it lands on the right calendar day.
+        Instant startedAt = Instant.now();
+        if (req.getDate() != null && !req.getDate().isAfter(java.time.LocalDate.now())) {
+            startedAt = req.getDate().atTime(12, 0)
+                    .atZone(java.time.ZoneId.systemDefault()).toInstant();
+        }
+
         WorkoutSession session = WorkoutSession.builder()
                 .user(user)
                 .template(template)
-                .startedAt(Instant.now())
+                .startedAt(startedAt)
                 .build();
 
         // Mirror exercises from template into session
@@ -179,11 +187,40 @@ public class WorkoutService {
                 .build();
     }
 
+    /**
+     * Replace one exercise in an active session with a different one — this
+     * session only, the program template is untouched. Any sets already logged
+     * for the old movement are discarded (they don't apply to the new one).
+     */
+    @Transactional
+    public WorkoutSessionResponse swapSessionExercise(Long userId, Long sessionId,
+                                                      Long sessionExerciseId, Long newExerciseId) {
+        WorkoutSession session = sessionRepo.findByIdAndUserIdWithDetails(sessionId, userId)
+                .orElseThrow(() -> new NoSuchElementException("Session not found"));
+        SessionExercise se = session.getExercises().stream()
+                .filter(x -> x.getId().equals(sessionExerciseId))
+                .findFirst()
+                .orElseThrow(() -> new NoSuchElementException("Exercise not in session"));
+        Exercise newExercise = exerciseRepo.findById(newExerciseId)
+                .orElseThrow(() -> new NoSuchElementException("Exercise not found"));
+
+        se.setExercise(newExercise);
+        se.getSets().clear(); // orphanRemoval deletes the old movement's sets
+        return toResponse(sessionRepo.save(session));
+    }
+
     @Transactional
     public WorkoutSessionResponse completeSession(Long userId, Long sessionId, String notes) {
         WorkoutSession session = sessionRepo.findByIdAndUserIdWithDetails(sessionId, userId)
                 .orElseThrow(() -> new NoSuchElementException("Session not found"));
-        session.setCompletedAt(Instant.now());
+        // For a backdated (retrospective) session, "now" would produce a
+        // multi-day duration; use a nominal 1h instead so stats stay sane.
+        Instant now = Instant.now();
+        Instant started = session.getStartedAt();
+        boolean sameDay = started != null
+                && started.atZone(java.time.ZoneId.systemDefault()).toLocalDate()
+                        .equals(now.atZone(java.time.ZoneId.systemDefault()).toLocalDate());
+        session.setCompletedAt(sameDay ? now : started.plusSeconds(3600));
         session.setNotes(notes);
         return toResponse(sessionRepo.save(session));
     }
