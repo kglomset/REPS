@@ -21,5 +21,8 @@ public class ExerciseProgressResponse {
         private Integer reps;
         /** Estimated 1RM using Epley formula: w * (1 + r/30) */
         private BigDecimal estimated1RM;
+        /** Training method the set was performed under (e.g. STRAIGHT_SETS, MYOREPS),
+         *  so the client can graph straight-set and myo-rep performance separately. */
+        private String trainingMethod;
     }
 }

@@ -542,9 +542,8 @@ function WorkoutCalendar({ sessions, program }: {
                 style={{ width: 32, height: 32, borderRadius: 16,
                   alignItems: 'center', justifyContent: 'center',
                   backgroundColor: has ? Colors.primary : 'transparent',
-                  borderWidth: (isToday(d) && !has) || emptyPast ? 1.5 : 0,
-                  borderStyle: emptyPast && !isToday(d) ? 'dashed' : 'solid',
-                  borderColor: emptyPast && !isToday(d) ? Colors.border : Colors.primary }}>
+                  borderWidth: isToday(d) && !has ? 1.5 : 0,
+                  borderColor: Colors.primary }}>
                 <Text style={{ fontSize: FontSize.xs,
                   color: has ? Colors.textInverse : isToday(d) ? Colors.primary : Colors.textPrimary,
                   fontWeight: has || isToday(d) ? FontWeight.bold : FontWeight.regular }}>

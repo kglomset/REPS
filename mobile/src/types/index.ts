@@ -134,6 +134,7 @@ export interface ProgressPoint {
   weightKg?: number;
   reps: number;
   estimated1RM?: number;
+  trainingMethod?: TrainingMethod;
 }
 
 export interface ExerciseProgressResponse {

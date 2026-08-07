@@ -32,6 +32,7 @@ public class ProgressService {
     private final BodyWeightLogRepository bodyWeightRepo;
     private final UserRepository userRepo;
 
+    @Transactional(readOnly = true)
     public ExerciseProgressResponse getExerciseProgress(Long userId, Long exerciseId) {
         var exercise = exerciseRepo.findById(exerciseId)
                 .orElseThrow(() -> new NoSuchElementException("Exercise not found"));
@@ -45,6 +46,8 @@ public class ProgressService {
                         .weightKg(s.getWeightKg())
                         .reps(s.getReps())
                         .estimated1RM(calculate1RM(s.getWeightKg(), s.getReps()))
+                        .trainingMethod(s.getSessionExercise().getTrainingMethod() != null
+                                ? s.getSessionExercise().getTrainingMethod().name() : null)
                         .build())
                 .toList();
 

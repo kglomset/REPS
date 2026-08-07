@@ -355,6 +355,7 @@ function ExerciseTile({ exercise, chartWidth }: {
   const [expanded, setExpanded]             = useState(false);
   const [chartType, setChartType]           = useState<'weight' | 'reps'>('weight');
   const [selectedWeight, setSelectedWeight] = useState<number | null>(null);
+  const [showMyoreps, setShowMyoreps]       = useState(false);
 
   const { data: progressData, isLoading } = useQuery({
     queryKey: ['exerciseProgress', exercise.id],
@@ -365,23 +366,40 @@ function ExerciseTile({ exercise, chartWidth }: {
   const primaryMuscles   = exercise.muscles.filter((m) => m.role === 'PRIMARY');
   const secondaryMuscles = exercise.muscles.filter((m) => m.role === 'SECONDARY');
 
-  const availableWeights = useMemo(() => {
+  // Myo-rep and straight-set performance are graphed separately so one doesn't
+  // distort the other. Straight sets are the default; the myo-reps view only
+  // appears when there is myo-rep data, and shows reps-at-weight.
+  const hasMyoreps = useMemo(
+    () => !!progressData?.series.some((p) => p.trainingMethod === 'MYOREPS'),
+    [progressData]
+  );
+  const myoActive = showMyoreps && hasMyoreps;
+  const effectiveChartType: 'weight' | 'reps' = myoActive ? 'reps' : chartType;
+
+  // Points for the active mode: myo-reps only, or everything except myo-reps.
+  const methodPoints = useMemo(() => {
     if (!progressData) return [];
+    return progressData.series.filter((p) =>
+      myoActive ? p.trainingMethod === 'MYOREPS' : p.trainingMethod !== 'MYOREPS'
+    );
+  }, [progressData, myoActive]);
+
+  const availableWeights = useMemo(() => {
     const seen = new Set<number>();
     const result: number[] = [];
-    for (const p of progressData.series) {
+    for (const p of methodPoints) {
       if (p.weightKg == null) continue;
       const w = Number(p.weightKg);
       if (!seen.has(w)) { seen.add(w); result.push(w); }
     }
     return result.sort((a, b) => a - b);
-  }, [progressData]);
+  }, [methodPoints]);
 
   const series = useMemo((): ChartSeries[] => {
-    if (!progressData) return [];
+    if (!methodPoints.length) return [];
 
-    if (chartType === 'weight') {
-      const set1 = progressData.series
+    if (effectiveChartType === 'weight') {
+      const set1 = methodPoints
         .filter((p) => p.setNumber === 1)
         .sort((a, b) => a.date.localeCompare(b.date));
       if (!set1.length) return [];
@@ -395,7 +413,7 @@ function ExerciseTile({ exercise, chartWidth }: {
       }];
     }
 
-    let pts = progressData.series;
+    let pts = methodPoints;
     if (selectedWeight !== null) {
       pts = pts.filter((p) => Math.abs(Number(p.weightKg) - selectedWeight) < 0.01);
     }
@@ -411,7 +429,7 @@ function ExerciseTile({ exercise, chartWidth }: {
           y: p.reps,
         })),
     }));
-  }, [progressData, chartType, selectedWeight]);
+  }, [methodPoints, effectiveChartType, selectedWeight]);
 
   const toggleWeight = (w: number) =>
     setSelectedWeight((prev) => (prev !== null && Math.abs(prev - w) < 0.01 ? null : w));
@@ -456,27 +474,52 @@ function ExerciseTile({ exercise, chartWidth }: {
       {/* Expanded content */}
       {expanded && (
         <View style={{ marginTop: Spacing.md }}>
-          {/* Chart type toggle */}
-          <View style={{ flexDirection: 'row', gap: 6, marginBottom: Spacing.sm }}>
-            {(['weight', 'reps'] as const).map((ct) => (
-              <TouchableOpacity
-                key={ct}
-                onPress={() => { setChartType(ct); setSelectedWeight(null); }}
-                style={{
-                  paddingHorizontal: 12, paddingVertical: 6, borderRadius: Radius.full,
-                  backgroundColor: chartType === ct ? Colors.primaryTint : Colors.surfaceSubtle,
-                  borderWidth: 1, borderColor: chartType === ct ? Colors.primary : 'transparent',
-                }}>
-                <Text style={{ fontSize: FontSize.xs, fontWeight: FontWeight.medium,
-                  color: chartType === ct ? Colors.primary : Colors.textSecondary }}>
-                  {ct === 'weight' ? 'Weight (kg)' : 'Reps'}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+          {/* Data-mode toggle — only shown when the exercise has myo-rep data.
+              Straight sets is the default; myo-reps tracks that method alone. */}
+          {hasMyoreps && (
+            <View style={{ flexDirection: 'row', gap: 6, marginBottom: Spacing.sm }}>
+              {([['straight', 'Straight sets'], ['myoreps', 'Myo-reps']] as const).map(([mode, label]) => {
+                const active = mode === 'myoreps' ? myoActive : !myoActive;
+                return (
+                  <TouchableOpacity
+                    key={mode}
+                    onPress={() => { setShowMyoreps(mode === 'myoreps'); setSelectedWeight(null); }}
+                    style={{
+                      paddingHorizontal: 12, paddingVertical: 6, borderRadius: Radius.full,
+                      backgroundColor: active ? Colors.primary : Colors.surfaceSubtle,
+                      borderWidth: 1, borderColor: active ? Colors.primary : 'transparent',
+                    }}>
+                    <Text style={{ fontSize: FontSize.xs, fontWeight: FontWeight.medium,
+                      color: active ? Colors.textInverse : Colors.textSecondary }}>{label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          )}
 
-          {/* Weight filter — reps mode only */}
-          {chartType === 'reps' && availableWeights.length > 1 && (
+          {/* Chart type toggle — straight-set view only (myo-reps is reps-at-weight) */}
+          {!myoActive && (
+            <View style={{ flexDirection: 'row', gap: 6, marginBottom: Spacing.sm }}>
+              {(['weight', 'reps'] as const).map((ct) => (
+                <TouchableOpacity
+                  key={ct}
+                  onPress={() => { setChartType(ct); setSelectedWeight(null); }}
+                  style={{
+                    paddingHorizontal: 12, paddingVertical: 6, borderRadius: Radius.full,
+                    backgroundColor: chartType === ct ? Colors.primaryTint : Colors.surfaceSubtle,
+                    borderWidth: 1, borderColor: chartType === ct ? Colors.primary : 'transparent',
+                  }}>
+                  <Text style={{ fontSize: FontSize.xs, fontWeight: FontWeight.medium,
+                    color: chartType === ct ? Colors.primary : Colors.textSecondary }}>
+                    {ct === 'weight' ? 'Weight (kg)' : 'Reps'}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+
+          {/* Weight filter — reps view (straight or myo-reps) */}
+          {effectiveChartType === 'reps' && availableWeights.length > 1 && (
             <View style={{ marginBottom: Spacing.xs }}>
               <Text style={{ fontSize: FontSize.xs, color: Colors.textMuted, marginBottom: 4 }}>
                 At weight:
@@ -508,7 +551,7 @@ function ExerciseTile({ exercise, chartWidth }: {
               height={220}
               formatX={(v) => format(new Date(v), 'MMM d')}
               formatY={(v) => `${Math.round(v)}`}
-              yUnit={chartType === 'weight' ? 'kg' : ''}
+              yUnit={effectiveChartType === 'weight' ? 'kg' : ''}
             />
           )}
         </View>

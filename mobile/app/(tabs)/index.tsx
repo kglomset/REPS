@@ -46,10 +46,23 @@ function meanOfWeek(history: BodyWeightResponse[], weekStart: Date): number | nu
 function computeWeightTrend(history: BodyWeightResponse[]): WeightTrend {
   if (history.length === 0) return { direction: 'none', deltaKg: 0 };
   const thisWeekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
-  const lastWeekStart = subWeeks(thisWeekStart, 1);
-  const curMean  = meanOfWeek(history, thisWeekStart);
-  const prevMean = meanOfWeek(history, lastWeekStart);
-  if (curMean == null || prevMean == null) return { direction: 'none', deltaKg: 0 };
+  const curMean = meanOfWeek(history, thisWeekStart);
+  if (curMean == null) return { direction: 'none', deltaKg: 0 };
+
+  // Prefer last week; if it has no logs, fall back to the most recent earlier
+  // week that does — i.e. compare against the last week actually logged.
+  let prevMean = meanOfWeek(history, subWeeks(thisWeekStart, 1));
+  if (prevMean == null) {
+    const priorLogs = history.filter((h) => parseISO(h.logDate) < thisWeekStart);
+    if (priorLogs.length > 0) {
+      const latestPrior = priorLogs.reduce((a, b) =>
+        parseISO(a.logDate) >= parseISO(b.logDate) ? a : b);
+      prevMean = meanOfWeek(history,
+        startOfWeek(parseISO(latestPrior.logDate), { weekStartsOn: 1 }));
+    }
+  }
+  if (prevMean == null) return { direction: 'none', deltaKg: 0 };
+
   const deltaKg = curMean - prevMean;
   const direction: TrendDirection =
     deltaKg > 0.05 ? 'up' : deltaKg < -0.05 ? 'down' : 'stable';
@@ -622,7 +635,7 @@ function BodyWeightCard({ latestWeight, history, trend, onLog, cardWidth, weight
                     gap: 2, marginTop: 3 }}>
                     <Ionicons name={arrowIcon as any} size={10} color={deltaColor} />
                     <Text style={{ fontSize: 10, color: deltaColor }}>
-                      {deltaMag} vs last week
+                      {deltaMag} vs prev week
                     </Text>
                   </View>
                 ) : null}

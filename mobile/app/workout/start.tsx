@@ -75,6 +75,19 @@ function buildExState(ex: SessionExerciseResponse): ExState {
   };
 }
 
+// Grow/shrink a row list to `count` rows, preserving existing entries and
+// carrying the previous-session hint onto any new rows.
+function resizeRows(rows: SetRow[], count: number): SetRow[] {
+  if (rows.length === count) return rows;
+  if (rows.length > count) return rows.slice(0, count);
+  const last = rows[rows.length - 1];
+  const extra: SetRow[] = Array.from({ length: count - rows.length }, () => ({
+    weight: '', reps: '', completed: false,
+    prevWeight: last?.prevWeight ?? '', prevReps: '',
+  }));
+  return [...rows, ...extra];
+}
+
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function ActiveWorkoutScreen() {
@@ -259,31 +272,40 @@ export default function ActiveWorkoutScreen() {
 
     // Toggle off if already complete
     if (st.rows[rowIdx]?.completed) {
-      updateExState(ex.id, {
-        rows: st.rows.map((r, i) => i === rowIdx ? { ...r, completed: false } : r),
+      setExStates((prev) => {
+        const s = prev[ex.id];
+        if (!s) return prev;
+        return { ...prev, [ex.id]: { ...s,
+          rows: s.rows.map((r, i) => i === rowIdx ? { ...r, completed: false } : r) } };
       });
       return;
     }
 
-    // Optimistically mark complete immediately so UI responds at once
-    updateExState(ex.id, {
-      rows: st.rows.map((r, i) =>
-        i === rowIdx ? { ...r, completed: true } : r
-      ),
+    // Optimistically mark complete AND persist the resolved weight/reps so both
+    // columns render in the same completed colour (a prefilled field must not
+    // revert to its grey placeholder). Uses the fresh `prev`, not the closure's
+    // possibly-stale rows.
+    setExStates((prev) => {
+      const s = prev[ex.id];
+      if (!s) return prev;
+      return { ...prev, [ex.id]: { ...s,
+        rows: s.rows.map((r, i) => i === rowIdx ? { ...r, completed: true, weight, reps } : r) } };
     });
 
-    // Start rest timer right away (optimistic)
+    // Rest timer: myo-reps use a short 10s cluster rest; everything else uses
+    // the exercise's configured rest.
     if (restEnabled) {
+      const restDur = st.method === 'MYOREPS' ? 10 : (st.restSeconds ?? 120);
       const groupId = st.supersetGroupId;
       if (groupId) {
         const groupExIds = activeSession!.exercises
           .filter((e) => exStates[e.id]?.supersetGroupId === groupId)
           .map((e) => e.id);
         if (ex.id === groupExIds[groupExIds.length - 1]) {
-          startRestTimer(st.restSeconds ?? 120);
+          startRestTimer(restDur);
         }
       } else {
-        startRestTimer(st.restSeconds ?? 120);
+        startRestTimer(restDur);
       }
     }
 
@@ -767,7 +789,11 @@ function ExerciseBlock({ ex, exState, onUpdateState, onSetComplete,
           )}
           <MethodPicker
             value={exState.method}
-            onChange={(m) => onUpdateState({ method: m })}
+            onChange={(m) =>
+              m === 'MYOREPS' && exState.method !== 'MYOREPS'
+                ? onUpdateState({ method: m, rows: resizeRows(exState.rows, 5) })
+                : onUpdateState({ method: m })
+            }
           />
           <TouchableOpacity onPress={() => setMenuVisible(true)}
             style={{ padding: 8 }}
@@ -779,11 +805,9 @@ function ExerciseBlock({ ex, exState, onUpdateState, onSetComplete,
 
       {/* Sets table */}
       <View style={{ paddingHorizontal: Spacing.sm, paddingBottom: Spacing.sm }}>
-        <RestInput
-          value={exState.restSeconds}
-          onChange={(v) => onUpdateState({ restSeconds: v })}
-        />
         {exState.method === 'MYOREPS' ? (
+          // Myo-reps: no rest chips — rest between mini-sets is a fixed ~10s,
+          // started automatically when a set is checked off.
           <MyorepsTable
             ex={ex}
             rows={exState.rows}
@@ -791,12 +815,18 @@ function ExerciseBlock({ ex, exState, onUpdateState, onSetComplete,
             onSetComplete={onSetComplete}
           />
         ) : (
-          <StraightSetsTable
-            ex={ex}
-            rows={exState.rows}
-            onRowsChange={(rows) => onUpdateState({ rows })}
-            onSetComplete={onSetComplete}
-          />
+          <>
+            <RestInput
+              value={exState.restSeconds}
+              onChange={(v) => onUpdateState({ restSeconds: v })}
+            />
+            <StraightSetsTable
+              ex={ex}
+              rows={exState.rows}
+              onRowsChange={(rows) => onUpdateState({ rows })}
+              onSetComplete={onSetComplete}
+            />
+          </>
         )}
       </View>
 

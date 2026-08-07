@@ -34,9 +34,9 @@ import java.util.stream.Collectors;
  * Set count is program design and is never suggested.
  *
  * Rules are evaluated in priority order; first match wins:
- *   R1 INCREASE_WEIGHT — latest snapshot hit repsMax on all working sets.
+ *   R1 INCREASE_WEIGHT — latest snapshot hit repsMax on all working sets. # Edit this! Increase if repsMax is hit on first set or other
  *   R2 DELOAD          — reps falling across 3 sessions at the same weight,
- *                        or most sets under repsMin last session.
+ *                        or most sets under repsMin last session. # This needs to be compared set to set.
  *   R3 SWAP_EXERCISE   — 4 sessions flat at the same weight, e1RM not rising.
  *
  * All thresholds live in the constants below (design doc §8).
@@ -57,7 +57,7 @@ public class ProgressionService {
     static final BigDecimal LIGHT_WEIGHT_CUTOFF = new BigDecimal("20");
     static final int RPE_GATE = 9;
     static final int FALLBACK_REPS_MIN = 6;
-    static final int FALLBACK_REPS_MAX = 10;
+    static final int FALLBACK_REPS_MAX = 12;
     static final double PROGRAM_STALL_RATIO = 0.60;
     static final double PROGRAM_WARN_RATIO = 0.30;
     static final int PROGRAM_AGE_WEEKS = 10;
