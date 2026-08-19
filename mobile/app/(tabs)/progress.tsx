@@ -368,13 +368,15 @@ function ExerciseTile({ exercise, chartWidth }: {
 
   // Myo-rep and straight-set performance are graphed separately so one doesn't
   // distort the other. Straight sets are the default; the myo-reps view only
-  // appears when there is myo-rep data, and shows reps-at-weight.
+  // appears when there is myo-rep data. Both views offer the same weight/reps
+  // toggle — in the myo-rep view "weight" is the activation-set load, which is
+  // the working weight every mini-set in the cluster shares.
   const hasMyoreps = useMemo(
     () => !!progressData?.series.some((p) => p.trainingMethod === 'MYOREPS'),
     [progressData]
   );
   const myoActive = showMyoreps && hasMyoreps;
-  const effectiveChartType: 'weight' | 'reps' = myoActive ? 'reps' : chartType;
+  const effectiveChartType: 'weight' | 'reps' = chartType;
 
   // Points for the active mode: myo-reps only, or everything except myo-reps.
   const methodPoints = useMemo(() => {
@@ -404,7 +406,7 @@ function ExerciseTile({ exercise, chartWidth }: {
         .sort((a, b) => a.date.localeCompare(b.date));
       if (!set1.length) return [];
       return [{
-        label: 'Weight',
+        label: myoActive ? 'Activation weight' : 'Weight',
         color: SERIES_COLORS[0],
         data: set1.map((p) => ({
           x: new Date(p.date).getTime(),
@@ -429,7 +431,7 @@ function ExerciseTile({ exercise, chartWidth }: {
           y: p.reps,
         })),
     }));
-  }, [methodPoints, effectiveChartType, selectedWeight]);
+  }, [methodPoints, effectiveChartType, selectedWeight, myoActive]);
 
   const toggleWeight = (w: number) =>
     setSelectedWeight((prev) => (prev !== null && Math.abs(prev - w) < 0.01 ? null : w));
@@ -497,26 +499,27 @@ function ExerciseTile({ exercise, chartWidth }: {
             </View>
           )}
 
-          {/* Chart type toggle — straight-set view only (myo-reps is reps-at-weight) */}
-          {!myoActive && (
-            <View style={{ flexDirection: 'row', gap: 6, marginBottom: Spacing.sm }}>
-              {(['weight', 'reps'] as const).map((ct) => (
-                <TouchableOpacity
-                  key={ct}
-                  onPress={() => { setChartType(ct); setSelectedWeight(null); }}
-                  style={{
-                    paddingHorizontal: 12, paddingVertical: 6, borderRadius: Radius.full,
-                    backgroundColor: chartType === ct ? Colors.primaryTint : Colors.surfaceSubtle,
-                    borderWidth: 1, borderColor: chartType === ct ? Colors.primary : 'transparent',
-                  }}>
-                  <Text style={{ fontSize: FontSize.xs, fontWeight: FontWeight.medium,
-                    color: chartType === ct ? Colors.primary : Colors.textSecondary }}>
-                    {ct === 'weight' ? 'Weight (kg)' : 'Reps'}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
+          {/* Chart type toggle — available in both the straight-set and myo-rep
+              views. For myo-reps, "weight" plots the activation-set load. */}
+          <View style={{ flexDirection: 'row', gap: 6, marginBottom: Spacing.sm }}>
+            {(['weight', 'reps'] as const).map((ct) => (
+              <TouchableOpacity
+                key={ct}
+                onPress={() => { setChartType(ct); setSelectedWeight(null); }}
+                style={{
+                  paddingHorizontal: 12, paddingVertical: 6, borderRadius: Radius.full,
+                  backgroundColor: chartType === ct ? Colors.primaryTint : Colors.surfaceSubtle,
+                  borderWidth: 1, borderColor: chartType === ct ? Colors.primary : 'transparent',
+                }}>
+                <Text style={{ fontSize: FontSize.xs, fontWeight: FontWeight.medium,
+                  color: chartType === ct ? Colors.primary : Colors.textSecondary }}>
+                  {ct === 'weight'
+                    ? (myoActive ? 'Activation weight (kg)' : 'Weight (kg)')
+                    : 'Reps'}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
 
           {/* Weight filter — reps view (straight or myo-reps) */}
           {effectiveChartType === 'reps' && availableWeights.length > 1 && (

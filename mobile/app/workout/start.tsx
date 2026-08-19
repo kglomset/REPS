@@ -44,20 +44,47 @@ interface WorkoutSummary {
 // Total flex = 1 + 1 + 2 + 3 + 3 = 10
 const COL = { set: 1, check: 1, prev: 2, kg: 3, reps: 3 };
 
+// Standard set count for an exercise performed as myo-reps: one activation set
+// plus five mini-sets. Applied whenever an exercise *becomes* myo-reps (method
+// change, swap, or a newly added exercise) — a template that already specifies
+// myo-reps keeps its own configured count.
+const MYOREPS_DEFAULT_SETS = 6;
+
+// Previous-session values for row `i`. Blank when that set has no history, so
+// sets added beyond last session's set count simply show nothing.
+function prevAt(ex: SessionExerciseResponse, i: number): Pick<SetRow, 'prevWeight' | 'prevReps'> {
+  const prev = ex.previousSets[i];
+  return {
+    prevWeight: prev?.weightKg?.toString() ?? '',
+    prevReps:   prev?.reps?.toString()     ?? '',
+  };
+}
+
+// Re-derive every row's previous-session hint from its set index. Called after
+// anything that changes the row list or the exercise behind it (method change,
+// swap, add/remove set) so the placeholders never drift out of sync.
+function withPrev(ex: SessionExerciseResponse, rows: SetRow[]): SetRow[] {
+  return rows.map((r, i) => ({ ...r, ...prevAt(ex, i) }));
+}
+
 // Build the editable row state for one session exercise (fresh rows from the
 // target set count, previous-session hints, and any already-logged sets).
-function buildExState(ex: SessionExerciseResponse): ExState {
-  const count = ex.targetSets ?? 3;
-  const rows: SetRow[] = Array.from({ length: count }, (_, i) => {
-    const prev = ex.previousSets[i];
-    return {
-      weight:     '',
-      reps:       '',
-      completed:  false,
-      prevWeight: prev?.weightKg?.toString() ?? '',
-      prevReps:   prev?.reps?.toString()    ?? '',
-    };
-  });
+// `opts` lets a caller pin the count/method — used when an exercise is swapped
+// or added mid-session and there is no template programming to read.
+function buildExState(
+  ex: SessionExerciseResponse,
+  opts?: { setCount?: number; method?: TrainingMethod },
+): ExState {
+  const method = opts?.method ?? ex.trainingMethod;
+  // Never drop an already-logged set when resuming a session.
+  const loggedCount = ex.sets.reduce((n, s) => Math.max(n, s.setNumber), 0);
+  const count = Math.max(opts?.setCount ?? ex.targetSets ?? 3, loggedCount, 1);
+  const rows: SetRow[] = Array.from({ length: count }, (_, i) => ({
+    weight:    '',
+    reps:      '',
+    completed: false,
+    ...prevAt(ex, i),
+  }));
   ex.sets.forEach((s) => {
     const row = rows[s.setNumber - 1];
     if (row) {
@@ -69,23 +96,37 @@ function buildExState(ex: SessionExerciseResponse): ExState {
   });
   return {
     rows,
-    method:          ex.trainingMethod,
+    method,
     restSeconds:     ex.restSeconds ?? 120,
     supersetGroupId: ex.supersetGroupId ?? null,
   };
 }
 
-// Grow/shrink a row list to `count` rows, preserving existing entries and
-// carrying the previous-session hint onto any new rows.
-function resizeRows(rows: SetRow[], count: number): SetRow[] {
-  if (rows.length === count) return rows;
-  if (rows.length > count) return rows.slice(0, count);
-  const last = rows[rows.length - 1];
-  const extra: SetRow[] = Array.from({ length: count - rows.length }, () => ({
-    weight: '', reps: '', completed: false,
-    prevWeight: last?.prevWeight ?? '', prevReps: '',
-  }));
-  return [...rows, ...extra];
+// Grow/shrink a row list to `count` rows. Existing entries are preserved, rows
+// that are completed or already filled in are never dropped, and every row —
+// old and new — re-reads the previous-session hint for its own set index.
+function resizeRows(ex: SessionExerciseResponse, rows: SetRow[], count: number): SetRow[] {
+  const filledThrough = rows.reduce(
+    (n, r, i) => (r.completed || r.weight || r.reps ? i + 1 : n), 0);
+  const target = Math.max(count, filledThrough, 1);
+  const next = rows.length > target
+    ? rows.slice(0, target)
+    : [...rows, ...Array.from({ length: target - rows.length }, () => ({
+        weight: '', reps: '', completed: false, prevWeight: '', prevReps: '',
+      }))];
+  return withPrev(ex, next);
+}
+
+// State patch for a training-method change: myo-reps standardises on 6 sets,
+// every other method keeps the current count, and all rows are repopulated
+// with previous-session data.
+function methodChangePatch(
+  ex: SessionExerciseResponse, st: ExState, method: TrainingMethod,
+): Partial<ExState> {
+  const count = method === 'MYOREPS' && st.method !== 'MYOREPS'
+    ? MYOREPS_DEFAULT_SETS
+    : st.rows.length;
+  return { method, rows: resizeRows(ex, st.rows, count) };
 }
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
@@ -107,6 +148,7 @@ export default function ActiveWorkoutScreen() {
   const [cancelConfirm, setCancelConfirm]   = useState(false);
   const [supersetPickerForId, setSupersetPickerForId] = useState<number | null>(null);
   const [swapForId, setSwapForId]           = useState<number | null>(null);
+  const [removeConfirmFor, setRemoveConfirmFor] = useState<SessionExerciseResponse | null>(null);
   const [exStates, setExStates]             = useState<Record<number, ExState>>({});
   const [elapsed, setElapsed]               = useState(0);
   const elapsedRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -184,9 +226,15 @@ export default function ActiveWorkoutScreen() {
 
   // Swap an exercise for a different one (this session only). The session
   // exercise id is stable, so we refresh just that entry's row state.
+  //
+  // The slot keeps its programming across the swap: same training method and
+  // same set count as before (myo-reps slots standardise on 6). Rows are then
+  // rebuilt from the *new* exercise's own previous-session data, blank where it
+  // has none.
   const handleSwap = useCallback(async (sessionExerciseId: number, newExerciseId: number) => {
     if (!activeSession) return;
     setSwapForId(null);
+    const before = exStates[sessionExerciseId];
     try {
       const updated = await workoutsApi.swapSessionExercise(
         activeSession.id, sessionExerciseId, newExerciseId);
@@ -194,10 +242,73 @@ export default function ActiveWorkoutScreen() {
       setOrderedExercises([...updated.exercises]);
       const swapped = updated.exercises.find((e) => e.id === sessionExerciseId);
       if (swapped) {
-        setExStates((prev) => ({ ...prev, [sessionExerciseId]: buildExState(swapped) }));
+        const method = before?.method ?? swapped.trainingMethod;
+        const setCount = method === 'MYOREPS'
+          ? MYOREPS_DEFAULT_SETS
+          : (before?.rows.length ?? swapped.targetSets ?? 3);
+        setExStates((prev) => ({
+          ...prev,
+          [sessionExerciseId]: {
+            ...buildExState(swapped, { setCount, method }),
+            restSeconds:     before?.restSeconds ?? swapped.restSeconds ?? 120,
+            supersetGroupId: before?.supersetGroupId ?? swapped.supersetGroupId ?? null,
+          },
+        }));
       }
     } catch (e: any) {
       Alert.alert('Swap failed', e.message);
+    }
+  }, [activeSession, exStates]);
+
+  // Add an exercise to the live session. A brand-new slot has no template
+  // programming, so its set count comes from the exercise's own history
+  // (falling back to the default) and every row is prefilled from it.
+  const handleAddExercise = useCallback(async (exerciseId: number) => {
+    if (!activeSession) return;
+    setAddExVisible(false);
+    const knownIds = new Set(activeSession.exercises.map((e) => e.id));
+    try {
+      const updated = await workoutsApi.addSessionExercise(activeSession.id, exerciseId);
+      setActiveSession(updated);
+      setOrderedExercises([...updated.exercises]);
+      const added = updated.exercises.find((e) => !knownIds.has(e.id));
+      if (added) {
+        const setCount = added.previousSets.length || added.targetSets || 3;
+        setExStates((prev) => ({ ...prev, [added.id]: buildExState(added, { setCount }) }));
+      }
+    } catch (e: any) {
+      Alert.alert('Could not add exercise', e.message);
+    }
+  }, [activeSession]);
+
+  // Remove an exercise from the live session (this session only — the program
+  // template keeps it). If it was in a group and only one member is left, that
+  // member is ungrouped too.
+  const handleRemoveExercise = useCallback(async (sessionExerciseId: number) => {
+    if (!activeSession) return;
+    setRemoveConfirmFor(null);
+    try {
+      const updated = await workoutsApi.removeSessionExercise(
+        activeSession.id, sessionExerciseId);
+      setActiveSession(updated);
+      setOrderedExercises([...updated.exercises]);
+      setExStates((prev) => {
+        const groupId = prev[sessionExerciseId]?.supersetGroupId;
+        const next = { ...prev };
+        delete next[sessionExerciseId];
+        if (groupId) {
+          const members = Object.keys(next).filter(
+            (id) => next[Number(id)]?.supersetGroupId === groupId
+          );
+          if (members.length === 1) {
+            const otherId = Number(members[0]);
+            next[otherId] = { ...next[otherId], supersetGroupId: null };
+          }
+        }
+        return next;
+      });
+    } catch (e: any) {
+      Alert.alert('Could not remove exercise', e.message);
     }
   }, [activeSession]);
 
@@ -542,6 +653,7 @@ export default function ActiveWorkoutScreen() {
                 onOpenSupersetPicker={() => setSupersetPickerForId(group[0].id)}
                 onRemoveFromGroup={() => handleRemoveFromGroup(group[0].id)}
                 onOpenSwap={() => setSwapForId(group[0].id)}
+                onRemoveExercise={() => setRemoveConfirmFor(group[0])}
                 suggestion={visibleSuggestions[group[0].id]}
                 onOpenSuggestion={() => setSuggestionFor(group[0])}
               />
@@ -555,6 +667,7 @@ export default function ActiveWorkoutScreen() {
                 allSessionExercises={activeSession.exercises}
                 onOpenSupersetPicker={(id) => setSupersetPickerForId(id)}
                 onRemoveFromGroup={handleRemoveFromGroup}
+                onRemoveExercise={(ex) => setRemoveConfirmFor(ex)}
                 suggestions={visibleSuggestions}
                 onOpenSuggestion={(ex) => setSuggestionFor(ex)}
               />
@@ -576,8 +689,8 @@ export default function ActiveWorkoutScreen() {
       {/* ── Modals ───────────────────────────────────────────────────────────── */}
       <AddExerciseModal
         visible={addExVisible}
-        sessionId={activeSession.id}
         existingIds={activeSession.exercises.map((e) => e.exercise.id)}
+        onAdd={handleAddExercise}
         onClose={() => setAddExVisible(false)}
       />
       {swapForId !== null && (() => {
@@ -616,6 +729,39 @@ export default function ActiveWorkoutScreen() {
           onClose={() => setSuggestionFor(null)}
         />
       )}
+
+      {/* ── Remove-exercise confirmation ────────────────────────────────────── */}
+      <Modal visible={removeConfirmFor !== null} transparent animationType="fade">
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)',
+          justifyContent: 'center', alignItems: 'center', padding: Spacing.lg }}>
+          <View style={{ backgroundColor: Colors.surface, borderRadius: Radius.xl,
+            padding: Spacing.lg, width: '100%', maxWidth: 320, ...Shadow.float }}>
+            <Text style={{ fontSize: FontSize.lg, fontWeight: FontWeight.bold,
+              color: Colors.textPrimary, marginBottom: Spacing.xs }}>
+              Remove exercise?
+            </Text>
+            <Text style={{ fontSize: FontSize.sm, color: Colors.textSecondary,
+              marginBottom: Spacing.lg }}>
+              {removeConfirmFor?.exercise.name} and any sets logged for it will be
+              dropped from this workout. Your program keeps the exercise.
+            </Text>
+            <TouchableOpacity
+              onPress={() => removeConfirmFor && handleRemoveExercise(removeConfirmFor.id)}
+              style={{ backgroundColor: Colors.error, borderRadius: Radius.md,
+                paddingVertical: 14, alignItems: 'center', marginBottom: Spacing.sm }}>
+              <Text style={{ color: Colors.textInverse, fontWeight: FontWeight.semibold,
+                fontSize: FontSize.md }}>Remove Exercise</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setRemoveConfirmFor(null)}
+              style={{ alignItems: 'center', paddingVertical: 10 }}>
+              <Text style={{ color: Colors.textSecondary, fontSize: FontSize.sm }}>
+                Keep It
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       {/* ── Cancel confirmation ─────────────────────────────────────────────── */}
       <Modal visible={cancelConfirm} transparent animationType="fade">
@@ -749,7 +895,7 @@ function MuscleChips({ muscles }: { muscles: SessionExerciseResponse['exercise']
 
 function ExerciseBlock({ ex, exState, onUpdateState, onSetComplete,
   allSessionExercises, allStates, onOpenSupersetPicker, onRemoveFromGroup,
-  onOpenSwap, suggestion, onOpenSuggestion }: {
+  onOpenSwap, onRemoveExercise, suggestion, onOpenSuggestion }: {
   ex: SessionExerciseResponse;
   exState: ExState | undefined;
   onUpdateState: (p: Partial<ExState>) => void;
@@ -759,6 +905,7 @@ function ExerciseBlock({ ex, exState, onUpdateState, onSetComplete,
   onOpenSupersetPicker: () => void;
   onRemoveFromGroup: () => void;
   onOpenSwap: () => void;
+  onRemoveExercise: () => void;
   suggestion?: ProgressionSuggestion;
   onOpenSuggestion?: () => void;
 }) {
@@ -776,7 +923,7 @@ function ExerciseBlock({ ex, exState, onUpdateState, onSetComplete,
           <Text style={{ fontSize: FontSize.md, fontWeight: FontWeight.semibold,
             color: Colors.textPrimary }}>{ex.exercise.name}</Text>
           <Text style={{ fontSize: FontSize.xs, color: Colors.textSecondary, marginTop: 1 }}>
-            {ex.targetSets} sets
+            {exState.rows.length} sets
             {ex.repsMin != null
               ? ` · ${ex.repsMin}${ex.repsMax != null && ex.repsMax !== ex.repsMin ? `–${ex.repsMax}` : ''} reps`
               : ''}
@@ -789,11 +936,7 @@ function ExerciseBlock({ ex, exState, onUpdateState, onSetComplete,
           )}
           <MethodPicker
             value={exState.method}
-            onChange={(m) =>
-              m === 'MYOREPS' && exState.method !== 'MYOREPS'
-                ? onUpdateState({ method: m, rows: resizeRows(exState.rows, 5) })
-                : onUpdateState({ method: m })
-            }
+            onChange={(m) => onUpdateState(methodChangePatch(ex, exState, m))}
           />
           <TouchableOpacity onPress={() => setMenuVisible(true)}
             style={{ padding: 8 }}
@@ -838,6 +981,7 @@ function ExerciseBlock({ ex, exState, onUpdateState, onSetComplete,
         onGroupWith={() => { setMenuVisible(false); onOpenSupersetPicker(); }}
         onRemoveFromGroup={() => { setMenuVisible(false); onRemoveFromGroup(); }}
         onSwap={() => { setMenuVisible(false); onOpenSwap(); }}
+        onRemoveExercise={() => { setMenuVisible(false); onRemoveExercise(); }}
       />
     </View>
   );
@@ -846,7 +990,7 @@ function ExerciseBlock({ ex, exState, onUpdateState, onSetComplete,
 // ─── Superset block ───────────────────────────────────────────────────────────
 
 function SupersetBlock({ exercises, exStates, onUpdateState, onSetComplete,
-  allSessionExercises, onOpenSupersetPicker, onRemoveFromGroup,
+  allSessionExercises, onOpenSupersetPicker, onRemoveFromGroup, onRemoveExercise,
   suggestions, onOpenSuggestion }: {
   exercises: SessionExerciseResponse[];
   exStates: Record<number, ExState>;
@@ -855,6 +999,7 @@ function SupersetBlock({ exercises, exStates, onUpdateState, onSetComplete,
   allSessionExercises: SessionExerciseResponse[];
   onOpenSupersetPicker: (exId: number) => void;
   onRemoveFromGroup: (exId: number) => void;
+  onRemoveExercise: (ex: SessionExerciseResponse) => void;
   suggestions?: Record<number, ProgressionSuggestion>;
   onOpenSuggestion?: (ex: SessionExerciseResponse) => void;
 }) {
@@ -885,7 +1030,7 @@ function SupersetBlock({ exercises, exStates, onUpdateState, onSetComplete,
                   <Text style={{ fontSize: FontSize.sm, fontWeight: FontWeight.semibold,
                     color: Colors.textPrimary }}>{ex.exercise.name}</Text>
                   <Text style={{ fontSize: FontSize.xs, color: Colors.textSecondary, marginTop: 1 }}>
-                    {ex.targetSets} sets
+                    {st.rows.length} sets
                     {ex.repsMin != null
                       ? ` · ${ex.repsMin}${ex.repsMax != null && ex.repsMax !== ex.repsMin ? `–${ex.repsMax}` : ''} reps`
                       : ''}
@@ -898,11 +1043,19 @@ function SupersetBlock({ exercises, exStates, onUpdateState, onSetComplete,
                     onPress={() => onOpenSuggestion(ex)}
                   />
                 )}
+                {/* Ungroup */}
                 <TouchableOpacity
                   onPress={() => onRemoveFromGroup(ex.id)}
                   style={{ padding: 4, marginTop: 2 }}
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                   <Ionicons name="close-circle-outline" size={16} color={Colors.textMuted} />
+                </TouchableOpacity>
+                {/* Remove from workout entirely */}
+                <TouchableOpacity
+                  onPress={() => onRemoveExercise(ex)}
+                  style={{ padding: 4, marginTop: 2 }}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Ionicons name="trash-outline" size={15} color={Colors.textMuted} />
                 </TouchableOpacity>
               </View>
               {st.method === 'MYOREPS' ? (
@@ -1022,16 +1175,18 @@ function StraightSetsTable({ ex, rows, onRowsChange, onSetComplete }: {
   onRowsChange: (rows: SetRow[]) => void;
   onSetComplete: (rowIdx: number, weight: string, reps: string) => void;
 }) {
+  // Removing a set shifts the ones below it up, so re-derive every row's
+  // previous-session hint against its new set index.
   const removeRow = (idx: number) => {
-    onRowsChange(rows.filter((_, i) => i !== idx));
+    onRowsChange(withPrev(ex, rows.filter((_, i) => i !== idx)));
   };
 
+  // A new set reads its own previous-session values by set index — nothing is
+  // carried over from the row above, and rows past last session's set count
+  // stay blank.
   const addRow = () => {
-    const last = rows[rows.length - 1];
     onRowsChange([...rows, {
-      weight: '', reps: '', completed: false,
-      prevWeight: last?.weight || last?.prevWeight || '',
-      prevReps:   last?.reps   || last?.prevReps   || '',
+      weight: '', reps: '', completed: false, ...prevAt(ex, rows.length),
     }]);
   };
 
@@ -1125,16 +1280,21 @@ function MyorepsTable({ ex, rows, onRowsChange, onSetComplete }: {
   onRowsChange: (rows: SetRow[]) => void;
   onSetComplete: (rowIdx: number, weight: string, reps: string) => void;
 }) {
+  // Removing a set shifts the ones below it up, so re-derive every row's
+  // previous-session hint against its new set index.
   const removeRow = (idx: number) => {
-    onRowsChange(rows.filter((_, i) => i !== idx));
+    onRowsChange(withPrev(ex, rows.filter((_, i) => i !== idx)));
   };
 
+  // Mini-sets share the activation load, so a new set inherits the current
+  // working weight, but its previous-session reps come from that set index.
   const addSet = () => {
     const activation = rows[0];
+    const prev = prevAt(ex, rows.length);
     onRowsChange([...rows, {
-      weight: '', reps: '', completed: false,
-      prevWeight: activation?.weight || activation?.prevWeight || '',
-      prevReps: '',
+      weight: activation?.weight || '', reps: '', completed: false,
+      prevWeight: prev.prevWeight || activation?.prevWeight || '',
+      prevReps:   prev.prevReps,
     }]);
   };
 
@@ -1333,13 +1493,15 @@ function RestInput({ value, onChange }: { value: number; onChange: (v: number) =
 
 // ─── Exercise menu ────────────────────────────────────────────────────────────
 
-function ExerciseMenu({ visible, inGroup, onClose, onGroupWith, onRemoveFromGroup, onSwap }: {
+function ExerciseMenu({ visible, inGroup, onClose, onGroupWith, onRemoveFromGroup,
+  onSwap, onRemoveExercise }: {
   visible: boolean;
   inGroup: boolean;
   onClose: () => void;
   onGroupWith: () => void;
   onRemoveFromGroup: () => void;
   onSwap: () => void;
+  onRemoveExercise: () => void;
 }) {
   return (
     <Modal visible={visible} transparent animationType="fade">
@@ -1376,6 +1538,16 @@ function ExerciseMenu({ visible, inGroup, onClose, onGroupWith, onRemoveFromGrou
               </Text>
             </TouchableOpacity>
           )}
+          <View style={{ height: 1, backgroundColor: Colors.border,
+            marginVertical: Spacing.xs, marginHorizontal: Spacing.md }} />
+          <TouchableOpacity onPress={onRemoveExercise}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.md,
+              padding: Spacing.md, borderRadius: Radius.md }}>
+            <Ionicons name="trash-outline" size={20} color={Colors.error} />
+            <Text style={{ fontSize: FontSize.md, color: Colors.error }}>
+              Remove from workout
+            </Text>
+          </TouchableOpacity>
           <TouchableOpacity onPress={onClose}
             style={{ alignItems: 'center', paddingTop: Spacing.sm }}>
             <Text style={{ color: Colors.textSecondary, fontSize: FontSize.sm }}>Cancel</Text>
@@ -1591,10 +1763,10 @@ function SupersetPickerModal({ visible, initiatorId, exercises, exStates, onAssi
 
 // ─── Add exercise modal ───────────────────────────────────────────────────────
 
-function AddExerciseModal({ visible, sessionId, existingIds, onClose }: {
+function AddExerciseModal({ visible, existingIds, onAdd, onClose }: {
   visible: boolean;
-  sessionId: number;
   existingIds: number[];
+  onAdd: (exerciseId: number) => void;
   onClose: () => void;
 }) {
   const [search, setSearch] = useState('');
@@ -1633,12 +1805,7 @@ function AddExerciseModal({ visible, sessionId, existingIds, onClose }: {
         <ScrollView>
           {filtered.map((ex) => (
             <TouchableOpacity key={ex.id}
-              onPress={() => {
-                Alert.alert('Add exercise', `Add ${ex.name} to this workout?`, [
-                  { text: 'Cancel', style: 'cancel' },
-                  { text: 'Add', onPress: () => { onClose(); } },
-                ]);
-              }}
+              onPress={() => onAdd(ex.id)}
               style={{ flexDirection: 'row', alignItems: 'center',
                 padding: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.border }}>
               <View style={{ flex: 1 }}>

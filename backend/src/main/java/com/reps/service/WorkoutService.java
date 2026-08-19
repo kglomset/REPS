@@ -209,6 +209,62 @@ public class WorkoutService {
         return toResponse(sessionRepo.save(session));
     }
 
+    /**
+     * Add an exercise to an active session — this session only, the program
+     * template is untouched. It lands at the end of the list.
+     */
+    @Transactional
+    public WorkoutSessionResponse addSessionExercise(Long userId, Long sessionId,
+                                                     Long exerciseId, String trainingMethod) {
+        WorkoutSession session = sessionRepo.findByIdAndUserIdWithDetails(sessionId, userId)
+                .orElseThrow(() -> new NoSuchElementException("Session not found"));
+        Exercise exercise = exerciseRepo.findById(exerciseId)
+                .orElseThrow(() -> new NoSuchElementException("Exercise not found"));
+
+        int nextOrder = session.getExercises().stream()
+                .map(SessionExercise::getExerciseOrder)
+                .filter(Objects::nonNull)
+                .max(Integer::compareTo)
+                .map(o -> o + 1)
+                .orElse(0);
+
+        TrainingMethod method = TrainingMethod.STRAIGHT_SETS;
+        if (trainingMethod != null && !trainingMethod.isBlank()) {
+            try {
+                method = TrainingMethod.valueOf(trainingMethod);
+            } catch (IllegalArgumentException ignored) {
+                // unknown method — keep the straight-sets default
+            }
+        }
+
+        session.getExercises().add(SessionExercise.builder()
+                .session(session)
+                .exercise(exercise)
+                .exerciseOrder(nextOrder)
+                .trainingMethod(method)
+                .build());
+        return toResponse(sessionRepo.save(session));
+    }
+
+    /**
+     * Remove one exercise (and any sets logged for it) from an active session.
+     * This session only — the program template keeps the exercise.
+     */
+    @Transactional
+    public WorkoutSessionResponse removeSessionExercise(Long userId, Long sessionId,
+                                                        Long sessionExerciseId) {
+        WorkoutSession session = sessionRepo.findByIdAndUserIdWithDetails(sessionId, userId)
+                .orElseThrow(() -> new NoSuchElementException("Session not found"));
+        boolean removed = session.getExercises()
+                .removeIf(x -> x.getId().equals(sessionExerciseId)); // orphanRemoval deletes it
+        if (!removed) throw new NoSuchElementException("Exercise not in session");
+
+        // Deliberately leave a gap in exerciseOrder: the remaining slots keep
+        // their position, so swapped exercises still resolve the right template
+        // programming. @OrderBy sorts fine with gaps.
+        return toResponse(sessionRepo.save(session));
+    }
+
     @Transactional
     public WorkoutSessionResponse completeSession(Long userId, Long sessionId, String notes) {
         WorkoutSession session = sessionRepo.findByIdAndUserIdWithDetails(sessionId, userId)
@@ -344,9 +400,18 @@ public class WorkoutService {
         Integer targetSets = 3;
         Integer repsMin = null, repsMax = null, restSeconds = null;
         if (session.getTemplate() != null) {
-            var match = session.getTemplate().getExercises().stream()
+            var templateExercises = session.getTemplate().getExercises();
+            var match = templateExercises.stream()
                     .filter(te -> te.getExercise().getId().equals(se.getExercise().getId()))
                     .findFirst();
+            // After an in-session swap the new movement is no longer part of the
+            // template, so fall back to the slot at the same position: it still
+            // carries this slot's programming (set count / rep range / rest).
+            if (match.isEmpty() && se.getExerciseOrder() != null) {
+                match = templateExercises.stream()
+                        .filter(te -> se.getExerciseOrder().equals(te.getExerciseOrder()))
+                        .findFirst();
+            }
             if (match.isPresent()) {
                 targetSets  = match.get().getSets();
                 repsMin     = match.get().getRepsMin();

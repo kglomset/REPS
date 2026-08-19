@@ -21,6 +21,23 @@ export const workoutsApi = {
       )
       .then((r) => r.data),
 
+  // Add an exercise to a live session (this session only — template untouched).
+  addSessionExercise: (sessionId: number, exerciseId: number, trainingMethod?: string) =>
+    client
+      .post<WorkoutSessionResponse>(ENDPOINTS.workouts.sessionExercises(sessionId), {
+        exerciseId,
+        ...(trainingMethod ? { trainingMethod } : {}),
+      })
+      .then((r) => r.data),
+
+  // Remove an exercise from a live session (this session only).
+  removeSessionExercise: (sessionId: number, sessionExerciseId: number) =>
+    client
+      .delete<WorkoutSessionResponse>(
+        ENDPOINTS.workouts.sessionExercise(sessionId, sessionExerciseId)
+      )
+      .then((r) => r.data),
+
   // ── Standalone workouts (not tied to a program or calendar) ──────────────
   listStandalone: () =>
     client

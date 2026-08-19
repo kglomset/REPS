@@ -23,6 +23,9 @@ export const ENDPOINTS = {
       `/workouts/sessions/${sessionId}/exercises/${exerciseId}/sets`,
     swap: (sessionId: number, sessionExerciseId: number) =>
       `/workouts/sessions/${sessionId}/exercises/${sessionExerciseId}/swap`,
+    sessionExercises: (sessionId: number) => `/workouts/sessions/${sessionId}/exercises`,
+    sessionExercise: (sessionId: number, sessionExerciseId: number) =>
+      `/workouts/sessions/${sessionId}/exercises/${sessionExerciseId}`,
     standalone: '/workouts/standalone',
     standaloneItem: (id: number) => `/workouts/standalone/${id}`,
   },

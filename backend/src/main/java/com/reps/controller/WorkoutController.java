@@ -102,6 +102,30 @@ public class WorkoutController {
                 principal.getId(), sessionId, sessionExerciseId, exerciseId);
     }
 
+    /** Add an exercise to an active session (this session only).
+     *  Body: { "exerciseId": 42, "trainingMethod": "STRAIGHT_SETS" } */
+    @PostMapping("/sessions/{sessionId}/exercises")
+    @ResponseStatus(HttpStatus.CREATED)
+    public WorkoutSessionResponse addExercise(@AuthenticationPrincipal UserPrincipal principal,
+                                              @PathVariable Long sessionId,
+                                              @RequestBody Map<String, Object> body) {
+        Long exerciseId = body.get("exerciseId") != null
+                ? ((Number) body.get("exerciseId")).longValue() : null;
+        String trainingMethod = body.get("trainingMethod") != null
+                ? String.valueOf(body.get("trainingMethod")) : null;
+        return workoutService.addSessionExercise(
+                principal.getId(), sessionId, exerciseId, trainingMethod);
+    }
+
+    /** Remove an exercise from an active session (this session only). */
+    @DeleteMapping("/sessions/{sessionId}/exercises/{sessionExerciseId}")
+    public WorkoutSessionResponse removeExercise(@AuthenticationPrincipal UserPrincipal principal,
+                                                 @PathVariable Long sessionId,
+                                                 @PathVariable Long sessionExerciseId) {
+        return workoutService.removeSessionExercise(
+                principal.getId(), sessionId, sessionExerciseId);
+    }
+
     /** Update a workout template (rename and/or change scheduled day). */
     @PatchMapping("/templates/{templateId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
