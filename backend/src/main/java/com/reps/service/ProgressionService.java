@@ -1,14 +1,19 @@
 package com.reps.service;
 
 import com.reps.dto.response.ProgramInsightResponse;
+import com.reps.dto.response.ExerciseTrendResponse;
 import com.reps.dto.response.ProgressionSuggestionResponse;
 import com.reps.dto.response.ProgressionSuggestionResponse.ExerciseSummary;
+import com.reps.dto.response.ProgressionTrendResponse;
+import com.reps.dto.response.ProgressionTrendResponse.SetDelta;
 import com.reps.entity.Exercise;
 import com.reps.entity.ExerciseMuscle;
 import com.reps.entity.ExerciseSet;
 import com.reps.entity.TrainingProgram;
+import com.reps.entity.WorkoutSession;
 import com.reps.enums.MuscleRole;
 import com.reps.enums.SuggestionType;
+import com.reps.enums.TrendDirection;
 import com.reps.repository.ExerciseRepository;
 import com.reps.repository.ExerciseSetRepository;
 import com.reps.repository.TrainingProgramRepository;
@@ -34,10 +39,16 @@ import java.util.stream.Collectors;
  * Set count is program design and is never suggested.
  *
  * Rules are evaluated in priority order; first match wins:
- *   R1 INCREASE_WEIGHT — latest snapshot hit repsMax on all working sets. # Edit this! Increase if repsMax is hit on first set or other
- *   R2 DELOAD          — reps falling across 3 sessions at the same weight,
- *                        or most sets under repsMin last session. # This needs to be compared set to set.
+ *   R1 INCREASE_WEIGHT — the best working set in the latest session reached
+ *                        repsMax (typically the first, freshest set); the
+ *                        later sets follow at the new load.
+ *   R2 DELOAD          — matched set numbers sliding across 3 sessions at the
+ *                        same weight, with no individual set improving.
  *   R3 SWAP_EXERCISE   — 4 sessions flat at the same weight, e1RM not rising.
+ *
+ * Separately from the rules, {@link #trend(List)} reports how the last two
+ * completed sessions compare (UP / FLAT / DOWN) — descriptive only, shown as
+ * an arrow on the exercise tile.
  *
  * All thresholds live in the constants below (design doc §8).
  */
@@ -63,6 +74,8 @@ public class ProgressionService {
     static final int PROGRAM_AGE_WEEKS = 10;
     static final double PROGRAM_AGE_MIN_SESSIONS_PER_WEEK = 2.0;
     static final int SWAP_ALTERNATIVES = 3;
+    /** e1RM dead-band for the trend arrow when the working weight changed (1 %). */
+    static final BigDecimal E1RM_TOLERANCE = new BigDecimal("0.01");
 
     /** Primary-muscle slugs that qualify as lower-body compound territory (+5 kg jumps). */
     private static final Set<String> LOWER_BODY_SLUGS = Set.of("quads", "hamstrings", "glutes");
@@ -81,16 +94,64 @@ public class ProgressionService {
     public ProgressionSuggestionResponse suggestFor(Long userId, Exercise exercise,
                                                     Integer repsMin, Integer repsMax,
                                                     Integer targetSets) {
-        List<ExerciseSet> history = setRepo.findHistoryForUserAndExercise(userId, exercise.getId());
-        List<Snapshot> snapshots = toSnapshots(history);
+        return analyse(userId, exercise, repsMin, repsMax, targetSets, true).suggestion();
+    }
 
-        ProgressionSuggestionResponse suggestion = evaluate(
-                snapshots, repsMin, repsMax, targetSets, isLowerBodyCompound(exercise));
+    /**
+     * Suggestion *and* week-to-week trend for one exercise, from a single read
+     * of its history. Callers that render an exercise tile want both, and the
+     * history query is the expensive part.
+     *
+     * @param includeSuggestion false for completed sessions, where a "do this
+     *                          next" suggestion is meaningless but the trend
+     *                          (how the session that just ended compared with
+     *                          the one before) still is.
+     */
+    public ExerciseProgression analyse(Long userId, Exercise exercise,
+                                       Integer repsMin, Integer repsMax, Integer targetSets,
+                                       boolean includeSuggestion) {
+        List<Snapshot> snapshots = toSnapshots(
+                setRepo.findHistoryForUserAndExercise(userId, exercise.getId()));
 
-        if (suggestion != null && suggestion.getType() == SuggestionType.SWAP_EXERCISE) {
-            suggestion.setAlternatives(findAlternatives(userId, exercise));
+        ProgressionSuggestionResponse suggestion = null;
+        if (includeSuggestion) {
+            suggestion = evaluate(snapshots, repsMin, repsMax, targetSets,
+                    isLowerBodyCompound(exercise));
+            if (suggestion != null && suggestion.getType() == SuggestionType.SWAP_EXERCISE) {
+                suggestion.setAlternatives(findAlternatives(userId, exercise));
+            }
         }
-        return suggestion;
+        return new ExerciseProgression(suggestion, trend(snapshots));
+    }
+
+    /** What the UI needs for one exercise tile. */
+    public record ExerciseProgression(ProgressionSuggestionResponse suggestion,
+                                      ProgressionTrendResponse trend) {
+    }
+
+    /**
+     * Week-to-week trend for every exercise the user has completed history for,
+     * in one query — backs the Progress tab's exercise list.
+     */
+    @Transactional(readOnly = true)
+    public List<ExerciseTrendResponse> trendsForUser(Long userId) {
+        Map<Long, List<ExerciseSet>> byExercise = setRepo.findCompletedHistoryForUser(userId)
+                .stream()
+                .collect(Collectors.groupingBy(
+                        s -> s.getSessionExercise().getExercise().getId(),
+                        LinkedHashMap::new, Collectors.toList()));
+
+        List<ExerciseTrendResponse> result = new ArrayList<>();
+        byExercise.forEach((exerciseId, sets) -> {
+            ProgressionTrendResponse trend = trend(toSnapshots(sets));
+            if (trend == null) return; // nothing to compare against yet
+            result.add(ExerciseTrendResponse.builder()
+                    .exerciseId(exerciseId)
+                    .exerciseName(sets.get(0).getSessionExercise().getExercise().getName())
+                    .trend(trend)
+                    .build());
+        });
+        return result;
     }
 
     /** Program-level insight (design doc R4): is the active program stale? */
@@ -204,31 +265,65 @@ public class ProgressionService {
         return null;
     }
 
-    /** R1: every working set in the latest snapshot reached repsMax. */
+    /**
+     * R1: the best working set in the latest snapshot reached repsMax.
+     *
+     * Reaching the top of the range on any working set — in practice the first,
+     * freshest one — is the trigger. Waiting for every set to top out stalls
+     * the load for weeks while the later sets catch up, which is exactly the
+     * "reps go up, weight never does" pattern this is meant to break.
+     */
     private boolean toppedOut(Snapshot latest, int repsMax, Integer targetSets) {
         List<Integer> reps = latest.workingSetReps();
         if (reps.isEmpty()) return false;
+        // A half-logged session is not evidence — still require a full set count.
         if (targetSets != null && reps.size() < targetSets) return false;
-        if (reps.stream().anyMatch(r -> r < repsMax)) return false;
+        if (reps.stream().noneMatch(r -> r >= repsMax)) return false;
         // RPE gate: only applies when RPE was logged
         return latest.avgRpe() == null || latest.avgRpe() <= RPE_GATE;
     }
 
     /**
-     * R2: total reps strictly falling across the last 3 sessions at the SAME
+     * R2: the same set numbers sliding across the last 3 sessions at the SAME
      * working weight — a real cross-session decline.
      *
-     * Note: reps naturally taper across sets within a session (set 1 = 8,
-     * set 2 = 7 is expected when training near failure), and a single set
-     * dipping below repsMin is fatigue, not regression — so neither is treated
-     * as a deload trigger. (repsMin is retained for signature stability / future
-     * rules but intentionally unused here.)
+     * Compared set to set rather than on session totals, for two reasons: an
+     * added or dropped set would otherwise fake a decline, and a set that is
+     * actually improving should veto the deload even if the total dipped. Reps
+     * naturally taper *within* a session (set 1 = 8, set 2 = 7 near failure),
+     * so only the same set number across sessions is comparable.
+     *
+     * (repsMin is retained for signature stability / future rules but
+     * intentionally unused here.)
      */
     boolean isRegressing(List<Snapshot> window, int repsMin) {
         List<Snapshot> last3 = lastN(window, MIN_SNAPSHOTS_DELOAD);
-        if (last3.size() < MIN_SNAPSHOTS_DELOAD) return false;
-        return sameWorkingWeight(last3)
-                && strictlyDecreasing(last3.stream().map(Snapshot::totalReps).toList());
+        if (last3.size() < MIN_SNAPSHOTS_DELOAD || !sameWorkingWeight(last3)) return false;
+
+        List<Integer> common = commonSetNumbers(last3);
+        if (common.isEmpty()) return false;
+
+        // No individual set may have improved anywhere in the window…
+        for (int setNumber : common) {
+            List<Integer> reps = last3.stream().map(sn -> sn.repsForSet(setNumber)).toList();
+            for (int i = 1; i < reps.size(); i++) {
+                if (reps.get(i) > reps.get(i - 1)) return false;
+            }
+        }
+        // …and the matched-set total has to fall every session.
+        List<Integer> totals = last3.stream().map(sn -> {
+            int total = 0;
+            for (int setNumber : common) total += sn.repsForSet(setNumber);
+            return total;
+        }).toList();
+        return strictlyDecreasing(totals);
+    }
+
+    /** Set numbers logged in every snapshot of the window, ascending. */
+    private static List<Integer> commonSetNumbers(List<Snapshot> snaps) {
+        Set<Integer> common = new TreeSet<>(snaps.get(0).setNumbers());
+        for (Snapshot snapshot : snaps) common.retainAll(snapshot.setNumbers());
+        return List.copyOf(common);
     }
 
     /** R3: last 4 snapshots — same weight, total reps flat (±1), e1RM not rising. */
@@ -248,8 +343,8 @@ public class ProgressionService {
     private ProgressionSuggestionResponse increaseWeightSuggestion(Snapshot latest, int repsMin, int repsMax,
                                                                    boolean lowerBodyCompound) {
         BigDecimal weight = latest.workingWeight();
-        int sets = latest.workingSetReps().size();
-        String hit = "Hit " + sets + "×" + repsMax + " (top of range)";
+        int best = latest.workingSetReps().stream().mapToInt(Integer::intValue).max().orElse(repsMax);
+        String hit = "Hit " + best + " reps (top of the " + repsMin + "–" + repsMax + " range)";
 
         if (weight == null || weight.signum() <= 0) {
             // Bodyweight: informational only — no target weight to pre-fill
@@ -300,6 +395,153 @@ public class ProgressionService {
         return lowerBodyCompound ? LOWER_INCREMENT : UPPER_INCREMENT;
     }
 
+    // ── Trend: how the last two completed sessions compare ────────────────
+
+    /**
+     * Compare the two most recent completed sessions for one exercise.
+     *
+     * Same working weight → the set-by-set rep change decides, which is the
+     * common case and the one worth celebrating: reps climbing week to week is
+     * progress even though the load never moved.
+     *
+     * Weight changed → estimated 1RM decides, with a 1 % dead-band, so trading
+     * a couple of reps for extra load still reads as progress rather than a
+     * regression.
+     *
+     * Returns null when there is nothing to compare against yet (first time
+     * doing the exercise), or when the two sessions share no set numbers.
+     */
+    ProgressionTrendResponse trend(List<Snapshot> snapshots) {
+        if (snapshots.size() < 2) return null;
+        Snapshot previous = snapshots.get(snapshots.size() - 2);
+        Snapshot latest = snapshots.get(snapshots.size() - 1);
+
+        // Only set numbers logged in both sessions are comparable.
+        List<SetDelta> deltas = new ArrayList<>();
+        for (int setNumber : latest.setNumbers()) {
+            Integer before = previous.repsForSet(setNumber);
+            Integer now = latest.repsForSet(setNumber);
+            if (before == null || now == null) continue;
+            deltas.add(new SetDelta(setNumber, before, now, now - before));
+        }
+        if (deltas.isEmpty()) return null;
+
+        int repsDelta = deltas.stream().mapToInt(SetDelta::getRepsDelta).sum();
+        BigDecimal weightDelta = latest.workingWeight()
+                .subtract(previous.workingWeight())
+                .setScale(2, RoundingMode.HALF_UP);
+        TrendDirection direction = trendDirection(weightDelta, repsDelta, previous, latest);
+
+        return ProgressionTrendResponse.builder()
+                .direction(direction)
+                .headline(headline(direction))
+                .message(trendMessage(direction, weightDelta, repsDelta, deltas, latest))
+                .weightDeltaKg(weightDelta)
+                .totalRepsDelta(repsDelta)
+                .previousDate(previous.date())
+                .latestDate(latest.date())
+                .sets(deltas)
+                .build();
+    }
+
+    private TrendDirection trendDirection(BigDecimal weightDelta, int repsDelta,
+                                          Snapshot previous, Snapshot latest) {
+        if (weightDelta.signum() == 0) return byReps(repsDelta);
+
+        BigDecimal before = previous.bestE1Rm();
+        BigDecimal now = latest.bestE1Rm();
+        // Bodyweight on either side — no load to trade against, so reps decide.
+        if (before == null || now == null || before.signum() <= 0) return byReps(repsDelta);
+
+        BigDecimal tolerance = before.multiply(E1RM_TOLERANCE);
+        BigDecimal diff = now.subtract(before);
+        if (diff.compareTo(tolerance) > 0) return TrendDirection.UP;
+        if (diff.compareTo(tolerance.negate()) < 0) return TrendDirection.DOWN;
+        return TrendDirection.FLAT;
+    }
+
+    private static TrendDirection byReps(int repsDelta) {
+        if (repsDelta > 0) return TrendDirection.UP;
+        if (repsDelta < 0) return TrendDirection.DOWN;
+        return TrendDirection.FLAT;
+    }
+
+    private static String headline(TrendDirection direction) {
+        return switch (direction) {
+            case UP -> "Progressing";
+            case FLAT -> "Maintaining";
+            case DOWN -> "Regressing";
+        };
+    }
+
+    /** Short, plain-language explanation of the arrow. */
+    private String trendMessage(TrendDirection direction, BigDecimal weightDelta, int repsDelta,
+                                List<SetDelta> deltas, Snapshot latest) {
+        List<SetDelta> gains = deltas.stream().filter(d -> d.getRepsDelta() > 0).toList();
+        List<SetDelta> losses = deltas.stream().filter(d -> d.getRepsDelta() < 0).toList();
+        boolean bodyweight = latest.workingWeight().signum() <= 0;
+        String at = bodyweight ? "" : " at " + formatKg(latest.workingWeight()) + " kg";
+
+        if (weightDelta.signum() > 0) {
+            String added = "You added " + formatKg(weightDelta.abs()) + " kg";
+            if (repsDelta > 0) {
+                return added + " and still increased reps on " + join(gains) + ". Strong session.";
+            }
+            if (repsDelta == 0) {
+                return added + " and held every rep" + at + ". Strong session.";
+            }
+            String easedOff = added + ", so reps eased off on " + join(losses) + ". ";
+            return switch (direction) {
+                case DOWN -> added + " but reps fell on " + join(losses)
+                        + " — further than the extra load accounts for."
+                        + " Stay at this weight until they come back.";
+                case FLAT -> easedOff + "An even trade — same estimated 1RM as last time.";
+                case UP -> easedOff + "That is the trade, and you came out ahead.";
+            };
+        }
+
+        if (weightDelta.signum() < 0) {
+            String dropped = "You dropped " + formatKg(weightDelta.abs()) + " kg";
+            if (direction == TrendDirection.UP) {
+                return dropped + " but pushed the reps up on " + join(gains) + ". Rebuild from here.";
+            }
+            if (direction == TrendDirection.FLAT) {
+                return dropped + " and held about the same reps. Work back up to your old load.";
+            }
+            return dropped + (losses.isEmpty()
+                    ? " without gaining reps, so your estimated 1RM is down."
+                    : " and the reps came down too on " + join(losses) + ".")
+                    + " Take an easier week, then rebuild.";
+        }
+
+        // Same working weight — reps tell the whole story.
+        return switch (direction) {
+            case UP -> "You increased reps on " + join(gains) + at + "."
+                    + (losses.isEmpty()
+                        ? " Keep this up."
+                        : " Down on " + join(losses) + ", but net +" + repsDelta + ". Keep this up.");
+            case FLAT -> gains.isEmpty() && losses.isEmpty()
+                    ? "Same reps as last time" + at + " — matched set for set. One extra rep anywhere moves you forward."
+                    : "Reps evened out" + at + " — up on " + join(gains) + ", down on " + join(losses)
+                        + ". Aim for a net gain next time.";
+            case DOWN -> "Reps came down on " + join(losses) + at + "."
+                    + (gains.isEmpty()
+                        ? " Match last session before adding load."
+                        : " Up on " + join(gains) + ", but net " + repsDelta + ". Match last session before adding load.");
+        };
+    }
+
+    /** "set 1 by 2, and set 2 by 1" — the rep change is always stated as a magnitude. */
+    private static String join(List<SetDelta> deltas) {
+        List<String> parts = deltas.stream()
+                .map(d -> "set " + d.getSetNumber() + " by " + Math.abs(d.getRepsDelta()))
+                .toList();
+        if (parts.isEmpty()) return "no sets";
+        if (parts.size() == 1) return parts.get(0);
+        return String.join(", ", parts.subList(0, parts.size() - 1))
+                + ", and " + parts.get(parts.size() - 1);
+    }
+
     // ── Snapshot grouping ─────────────────────────────────────────────────
 
     /**
@@ -319,6 +561,9 @@ public class ProgressionService {
     }
 
     private Snapshot toSnapshot(List<ExerciseSet> sets) {
+        WorkoutSession session = sets.get(0).getSessionExercise() != null
+                ? sets.get(0).getSessionExercise().getSession() : null;
+
         // Working weight = modal weight (most common), robust to a lighter first set.
         // Null weights (bodyweight) are treated as 0 for grouping.
         Map<BigDecimal, Long> counts = sets.stream().collect(Collectors.groupingBy(
@@ -348,13 +593,57 @@ public class ProgressionService {
                 .max(Comparator.naturalOrder())
                 .orElse(null);
 
-        return new Snapshot(workingWeight, reps, totalReps,
+        // Set-numbered entries: the trend and the deload rule compare set 2 with
+        // set 2, never set 2 with set 3.
+        List<SetEntry> entries = workingSets.stream()
+                .filter(x -> x.getSetNumber() != null)
+                .map(x -> new SetEntry(x.getSetNumber(), x.getReps()))
+                .sorted(Comparator.comparingInt(SetEntry::setNumber))
+                .toList();
+
+        return new Snapshot(
+                session != null ? session.getId() : null,
+                session != null ? session.getStartedAt() : null,
+                workingWeight, reps, entries, totalReps,
                 avgRpe.isPresent() ? avgRpe.getAsDouble() : null, bestE1Rm);
     }
 
+    /** One working set inside a snapshot, keyed by its set number. */
+    record SetEntry(int setNumber, int reps) {
+    }
+
     /** One completed session's performance on one exercise. */
-    record Snapshot(BigDecimal workingWeight, List<Integer> workingSetReps,
+    record Snapshot(Long sessionId, Instant date,
+                    BigDecimal workingWeight, List<Integer> workingSetReps,
+                    List<SetEntry> setEntries,
                     int totalReps, Double avgRpe, BigDecimal bestE1Rm) {
+
+        /** Convenience for tests and callers that don't care which session it was. */
+        Snapshot(BigDecimal workingWeight, List<Integer> workingSetReps,
+                 int totalReps, Double avgRpe, BigDecimal bestE1Rm) {
+            this(null, null, workingWeight, workingSetReps,
+                    numberSequentially(workingSetReps), totalReps, avgRpe, bestE1Rm);
+        }
+
+        /** Set numbers logged at the working weight, ascending. */
+        List<Integer> setNumbers() {
+            return setEntries.stream().map(SetEntry::setNumber).toList();
+        }
+
+        /** Reps for one set number, or null when that set wasn't logged here. */
+        Integer repsForSet(int setNumber) {
+            return setEntries.stream()
+                    .filter(e -> e.setNumber() == setNumber)
+                    .map(SetEntry::reps)
+                    .findFirst()
+                    .orElse(null);
+        }
+
+        private static List<SetEntry> numberSequentially(List<Integer> reps) {
+            List<SetEntry> entries = new ArrayList<>();
+            for (int i = 0; i < reps.size(); i++) entries.add(new SetEntry(i + 1, reps.get(i)));
+            return List.copyOf(entries);
+        }
     }
 
     // ── Swap alternatives ─────────────────────────────────────────────────

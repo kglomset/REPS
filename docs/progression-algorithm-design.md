@@ -44,7 +44,9 @@ No suggestion is the default. Suggestions are advisory — nothing changes until
 Requires ≥ 1 prior snapshot; rules 2–3 require ≥ 3. At most one suggestion per exercise — first match wins, and each suggestion changes exactly one variable (weight *or* exercise), never several at once.
 
 ### R1 — INCREASE_WEIGHT
-In the **most recent** snapshot, every working set reached `repsMax` (and at least `targetSets` sets were logged, or all logged sets if target unknown). If `rpe` was logged, additionally require avg RPE ≤ 9.
+In the **most recent** snapshot, the **best working set** reached `repsMax` — in practice the first, freshest set. At least `targetSets` sets must have been logged (a half-logged session is not evidence), and if `rpe` was logged, avg RPE ≤ 9.
+
+> **Revised Aug 2026.** This originally required *every* working set to top out. In practice that stalls the load for weeks while the trailing sets catch up — the exact "reps keep going up, weight never does" pattern the algorithm is meant to break. Topping the range on the first set is the signal; the later sets follow at the new load.
 
 Suggested increment, rounded to 2.5 kg:
 - lower-body compound (primary muscle in quads/hamstrings/glutes): **+5 kg**
@@ -54,7 +56,15 @@ Suggested increment, rounded to 2.5 kg:
 Suggestion payload includes `suggestedWeightKg = workingWeight + increment`.
 
 ### R2 — DELOAD
-Over the last 3 snapshots at the **same working weight**, total reps **decreased monotonically**, or the latest snapshot missed `repsMin` on ≥ half its sets. Suggest reducing to **90 % of working weight** (rounded to 2.5 kg) and rebuilding.
+Over the last 3 snapshots at the **same working weight**, compared **set number to set number**:
+
+- only set numbers logged in *all three* sessions are considered (adding or dropping a set must not fake a decline);
+- **no individual set may have improved** anywhere in the window — one climbing set vetoes the deload, because that is a shifting effort distribution, not a regression;
+- the total over those matched sets must fall **every** session.
+
+Suggest reducing to **90 % of working weight** (rounded to 2.5 kg) and rebuilding.
+
+> **Revised Aug 2026.** Was session rep totals. Reps taper *within* a session (set 1 = 8, set 2 = 7 near failure) so only the same set number across sessions is comparable.
 
 ### R3 — SWAP_EXERCISE (plateau)
 Last **4** snapshots: working weight unchanged **and** total reps within ±1 of flat **and** e1RM trend slope ≤ 0 — i.e., stuck, but not regressing (that's R2). Suggest rotating to a variation: top 3 exercises sharing the same PRIMARY muscle group that the user hasn't done in the window.
@@ -66,6 +76,31 @@ Evaluated for the active program: if ≥ 60 % of its distinct exercises are curr
 - A suggestion type is suppressed for an exercise if the same type fired in the previous snapshot and the underlying condition data hasn't gained a new snapshot (i.e., recompute only adds signal when a new session completes — automatic since input is completed sessions).
 - After the user changes weight (accepting R1 or not), R1 can't re-fire until `repsMax` is hit again at the *new* weight — this falls out of the rule naturally. In between, the user progresses reps within the range with no algorithm involvement.
 - Dismissals are client-side, session-scoped state keyed by `exerciseId + type + message` (new data changes the message, resurfacing the badge); no backend state in MVP.
+
+## 4b. Week-to-week trend (descriptive, not a suggestion)
+
+Separate from R1–R4: an arrow on every exercise tile saying how the **last two completed sessions** compare. Unlike a suggestion it never asks for a change — it exists so that progress that *is* happening (reps climbing at a fixed load, week after week) is visible instead of silent.
+
+**Direction**
+
+| Working weight | Decided by |
+|---|---|
+| unchanged | net rep change over the set numbers logged in both sessions |
+| changed | best estimated 1RM, with a **1 % dead-band** — so trading a couple of reps for extra load reads as progress, not regression |
+
+`UP` = Progressing, `FLAT` = Maintaining, `DOWN` = Regressing. Null until the exercise has two completed sessions, or if the two sessions share no set numbers.
+
+**Payload** — `direction`, `headline`, a written `message`, `weightDeltaKg`, `totalRepsDelta`, both session dates, and a per-set breakdown (`setNumber`, `previousReps`, `reps`, `repsDelta`) restricted to the matched sets.
+
+**Message** is generated backend-side so every surface says the same thing, e.g.:
+
+> "You increased reps on set 1 by 2, and set 2 by 1 at 60 kg. Keep this up."
+> "You added 2.5 kg, so reps eased off on set 1 by 1, and set 2 by 1. That is the trade, and you came out ahead."
+> "Same reps as last time at 60 kg — matched set for set. One extra rep anywhere moves you forward."
+
+**When it runs** — on every session load, so **starting a workout recomputes it**. On an *active* session it compares the last two completed sessions (how last week went vs the week before); on a *completed* one it compares the session just logged with the one before it, which is what the completion overlay shows. The Progress tab reads `GET /progress/trends`, one query for every exercise.
+
+**Surfaces** — active-workout exercise tiles (including superset members), Progress tab exercise list, and the workout summary overlay. Tapping the arrow opens a sheet with the message and the set-by-set numbers.
 
 ## 5. API design
 

@@ -11,7 +11,11 @@ import DraggableFlatList, { RenderItemParams } from 'react-native-draggable-flat
 import { workoutsApi } from '@/services/api/workouts';
 import { exercisesApi } from '@/services/api/exercises';
 import { useWorkoutStore } from '@/store/useWorkoutStore';
-import { SessionExerciseResponse, ExerciseResponse, TrainingMethod, ProgressionSuggestion } from '@/types';
+import {
+  SessionExerciseResponse, ExerciseResponse, TrainingMethod,
+  ProgressionSuggestion, ProgressionTrend,
+} from '@/types';
+import { TrendBadge, TrendSheet, trendStyle } from '@/components/TrendBadge';
 import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/constants/theme';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -36,7 +40,8 @@ interface WorkoutSummary {
   duration: number;
   totalSets: number;
   totalVolume: number;
-  exerciseNames: string[];
+  /** Name + how it compared with last time, for the completion overlay. */
+  exercises: { name: string; trend?: ProgressionTrend | null }[];
 }
 
 // ─── Column flex ratios ───────────────────────────────────────────────────────
@@ -157,6 +162,8 @@ export default function ActiveWorkoutScreen() {
   // Progression suggestions: dismissed keys + which exercise's sheet is open
   const [dismissedSuggestions, setDismissedSuggestions] = useState<Record<string, boolean>>({});
   const [suggestionFor, setSuggestionFor]   = useState<SessionExerciseResponse | null>(null);
+  // Week-to-week trend: which exercise's detail sheet is open
+  const [trendFor, setTrendFor]             = useState<{ name: string; trend: ProgressionTrend } | null>(null);
 
   // ── Session bootstrap ───────────────────────────────────────────────────────
 
@@ -465,19 +472,25 @@ export default function ActiveWorkoutScreen() {
         0
       );
       // Only list exercises that had at least one completed set
-      const exerciseNames = activeSession.exercises
-        .filter((e) => exStates[e.id]?.rows.some((r) => r.completed))
-        .map((e) => e.exercise.name);
+      const logged = activeSession.exercises
+        .filter((e) => exStates[e.id]?.rows.some((r) => r.completed));
 
-      // Mark complete on server (non-blocking — sets were already logged one-by-one)
-      try { await workoutsApi.completeSession(activeSession.id); } catch {}
+      // Mark complete on server (non-blocking — sets were already logged one-by-one).
+      // The response carries freshly computed trends: now that this session is
+      // complete it is the one being compared against last time.
+      let completed = null as Awaited<ReturnType<typeof workoutsApi.completeSession>> | null;
+      try { completed = await workoutsApi.completeSession(activeSession.id); } catch {}
       queryClient.invalidateQueries({ queryKey: ['sessions'] });
       queryClient.invalidateQueries({ queryKey: ['activeProgram'] });
+      queryClient.invalidateQueries({ queryKey: ['exerciseTrends'] });
       setSummary({
         duration: elapsed,
         totalSets,
         totalVolume: Math.round(totalVolume),
-        exerciseNames,
+        exercises: logged.map((e) => ({
+          name: e.exercise.name,
+          trend: completed?.exercises.find((x) => x.id === e.id)?.trend ?? e.trend,
+        })),
       });
     } finally {
       setCompleting(false);
@@ -656,6 +669,7 @@ export default function ActiveWorkoutScreen() {
                 onRemoveExercise={() => setRemoveConfirmFor(group[0])}
                 suggestion={visibleSuggestions[group[0].id]}
                 onOpenSuggestion={() => setSuggestionFor(group[0])}
+                onOpenTrend={(t) => setTrendFor({ name: group[0].exercise.name, trend: t })}
               />
             ) : (
               <SupersetBlock
@@ -670,6 +684,7 @@ export default function ActiveWorkoutScreen() {
                 onRemoveExercise={(ex) => setRemoveConfirmFor(ex)}
                 suggestions={visibleSuggestions}
                 onOpenSuggestion={(ex) => setSuggestionFor(ex)}
+                onOpenTrend={(ex, t) => setTrendFor({ name: ex.exercise.name, trend: t })}
               />
             )
           )}
@@ -719,6 +734,13 @@ export default function ActiveWorkoutScreen() {
       )}
       {summary && (
         <WorkoutSummaryOverlay summary={summary} onDismiss={handleSummaryDismiss} />
+      )}
+      {trendFor && (
+        <TrendSheet
+          exerciseName={trendFor.name}
+          trend={trendFor.trend}
+          onClose={() => setTrendFor(null)}
+        />
       )}
       {suggestionFor?.suggestion && (
         <SuggestionSheet
@@ -895,7 +917,7 @@ function MuscleChips({ muscles }: { muscles: SessionExerciseResponse['exercise']
 
 function ExerciseBlock({ ex, exState, onUpdateState, onSetComplete,
   allSessionExercises, allStates, onOpenSupersetPicker, onRemoveFromGroup,
-  onOpenSwap, onRemoveExercise, suggestion, onOpenSuggestion }: {
+  onOpenSwap, onRemoveExercise, suggestion, onOpenSuggestion, onOpenTrend }: {
   ex: SessionExerciseResponse;
   exState: ExState | undefined;
   onUpdateState: (p: Partial<ExState>) => void;
@@ -908,6 +930,7 @@ function ExerciseBlock({ ex, exState, onUpdateState, onSetComplete,
   onRemoveExercise: () => void;
   suggestion?: ProgressionSuggestion;
   onOpenSuggestion?: () => void;
+  onOpenTrend: (trend: ProgressionTrend) => void;
 }) {
   const [menuVisible, setMenuVisible] = useState(false);
   if (!exState) return null;
@@ -931,6 +954,10 @@ function ExerciseBlock({ ex, exState, onUpdateState, onSetComplete,
           <MuscleChips muscles={ex.exercise.muscles} />
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 }}>
+          {/* Week-to-week trend — how last session went vs the one before */}
+          {ex.trend && (
+            <TrendBadge trend={ex.trend} onPress={() => onOpenTrend(ex.trend!)} />
+          )}
           {suggestion && onOpenSuggestion && (
             <SuggestionBadge type={suggestion.type} onPress={onOpenSuggestion} />
           )}
@@ -991,7 +1018,7 @@ function ExerciseBlock({ ex, exState, onUpdateState, onSetComplete,
 
 function SupersetBlock({ exercises, exStates, onUpdateState, onSetComplete,
   allSessionExercises, onOpenSupersetPicker, onRemoveFromGroup, onRemoveExercise,
-  suggestions, onOpenSuggestion }: {
+  suggestions, onOpenSuggestion, onOpenTrend }: {
   exercises: SessionExerciseResponse[];
   exStates: Record<number, ExState>;
   onUpdateState: (exId: number, p: Partial<ExState>) => void;
@@ -1002,6 +1029,7 @@ function SupersetBlock({ exercises, exStates, onUpdateState, onSetComplete,
   onRemoveExercise: (ex: SessionExerciseResponse) => void;
   suggestions?: Record<number, ProgressionSuggestion>;
   onOpenSuggestion?: (ex: SessionExerciseResponse) => void;
+  onOpenTrend: (ex: SessionExerciseResponse, trend: ProgressionTrend) => void;
 }) {
   const label = exercises.length === 2 ? 'Superset' : 'Circle';
   return (
@@ -1037,6 +1065,13 @@ function SupersetBlock({ exercises, exStates, onUpdateState, onSetComplete,
                   </Text>
                   <MuscleChips muscles={ex.exercise.muscles} />
                 </View>
+                {ex.trend && (
+                  <TrendBadge
+                    trend={ex.trend}
+                    size={20}
+                    onPress={() => onOpenTrend(ex, ex.trend!)}
+                  />
+                )}
                 {suggestions?.[ex.id] && onOpenSuggestion && (
                   <SuggestionBadge
                     type={suggestions[ex.id].type}
@@ -1950,20 +1985,31 @@ function WorkoutSummaryOverlay({ summary, onDismiss }: {
             <StatPill label="Volume" value={`${summary.totalVolume}kg`} icon="barbell-outline" />
           </View>
 
-          {/* Exercises */}
-          {summary.exerciseNames.length > 0 && (
+          {/* Exercises — with how each one compared to last time */}
+          {summary.exercises.length > 0 && (
             <View style={{ backgroundColor: Colors.surfaceMuted, borderRadius: Radius.md,
               padding: Spacing.md, marginBottom: Spacing.lg }}>
-              {summary.exerciseNames.slice(0, 4).map((name) => (
-                <View key={name} style={{ flexDirection: 'row', alignItems: 'center',
-                  gap: 8, marginBottom: 4 }}>
-                  <Ionicons name="checkmark-circle" size={14} color={Colors.success} />
-                  <Text style={{ fontSize: FontSize.sm, color: Colors.textPrimary }}>{name}</Text>
-                </View>
-              ))}
-              {summary.exerciseNames.length > 4 && (
+              {summary.exercises.slice(0, 5).map((e) => {
+                const t = e.trend ? trendStyle(e.trend.direction) : null;
+                return (
+                  <View key={e.name} style={{ flexDirection: 'row', alignItems: 'center',
+                    gap: 8, marginBottom: 4 }}>
+                    <Ionicons name="checkmark-circle" size={14} color={Colors.success} />
+                    <Text style={{ flex: 1, fontSize: FontSize.sm,
+                      color: Colors.textPrimary }}>{e.name}</Text>
+                    {t && e.trend && (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                        <Ionicons name={t.icon} size={12} color={t.color} />
+                        <Text style={{ fontSize: FontSize.xs, color: t.color,
+                          fontWeight: FontWeight.medium }}>{e.trend.headline}</Text>
+                      </View>
+                    )}
+                  </View>
+                );
+              })}
+              {summary.exercises.length > 5 && (
                 <Text style={{ fontSize: FontSize.xs, color: Colors.textMuted, marginTop: 2 }}>
-                  +{summary.exerciseNames.length - 4} more
+                  +{summary.exercises.length - 5} more
                 </Text>
               )}
             </View>

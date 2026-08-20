@@ -3,6 +3,7 @@ package com.reps.controller;
 import com.reps.dto.request.BodyWeightRequest;
 import com.reps.dto.response.BodyWeightResponse;
 import com.reps.dto.response.ExerciseProgressResponse;
+import com.reps.dto.response.ExerciseTrendResponse;
 import com.reps.dto.response.ProgramInsightResponse;
 import com.reps.security.UserPrincipal;
 import com.reps.service.ProgressService;
@@ -27,6 +28,16 @@ public class ProgressController {
     @GetMapping("/program-insight")
     public ProgramInsightResponse programInsight(@AuthenticationPrincipal UserPrincipal principal) {
         return progressionService.programInsight(principal.getId());
+    }
+
+    /**
+     * Week-to-week trend for every exercise with completed history — the arrows
+     * on the Progress tab's exercise list. Exercises with only one session are
+     * omitted (nothing to compare).
+     */
+    @GetMapping("/trends")
+    public List<ExerciseTrendResponse> trends(@AuthenticationPrincipal UserPrincipal principal) {
+        return progressionService.trendsForUser(principal.getId());
     }
 
     @GetMapping("/exercises/{exerciseId}")

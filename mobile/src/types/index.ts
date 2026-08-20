@@ -93,6 +93,38 @@ export interface ProgressionSuggestion {
   alternatives?: { id: number; name: string }[];
 }
 
+// ─── Week-to-week trend ───────────────────────────────────────────────────────
+// How an exercise's last completed session compares with the one before it.
+// Same working weight → reps decide; weight changed → estimated 1RM decides.
+export type TrendDirection = 'UP' | 'FLAT' | 'DOWN';
+
+export interface TrendSetDelta {
+  setNumber: number;
+  previousReps: number;
+  reps: number;
+  repsDelta: number;
+}
+
+export interface ProgressionTrend {
+  direction: TrendDirection;
+  /** Short title: 'Progressing' | 'Maintaining' | 'Regressing' */
+  headline: string;
+  /** Plain-language explanation, e.g. "You increased reps on set 1 by 2…" */
+  message: string;
+  weightDeltaKg?: number;
+  totalRepsDelta?: number;
+  previousDate?: string;
+  latestDate?: string;
+  /** Only the set numbers logged in both sessions. */
+  sets: TrendSetDelta[];
+}
+
+export interface ExerciseTrendResponse {
+  exerciseId: number;
+  exerciseName: string;
+  trend: ProgressionTrend;
+}
+
 export interface ProgramInsightResponse {
   status: 'OK' | 'STALLING' | 'CHANGE_RECOMMENDED' | 'NO_ACTIVE_PROGRAM';
   message: string;
@@ -115,6 +147,12 @@ export interface SessionExerciseResponse {
   previousSets: ExerciseSetResponse[]; // guidance from last workout
   /** Progression suggestion (null/absent = keep progressing reps). Active sessions only. */
   suggestion?: ProgressionSuggestion | null;
+  /**
+   * Week-to-week trend arrow. On an active session it compares the last two
+   * completed sessions; on a finished one, the session you just logged against
+   * the one before it. Absent until there are two sessions to compare.
+   */
+  trend?: ProgressionTrend | null;
 }
 
 export interface WorkoutSessionResponse {

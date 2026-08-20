@@ -1,10 +1,12 @@
 package com.reps.service;
 
 import com.reps.dto.response.ProgressionSuggestionResponse;
+import com.reps.dto.response.ProgressionTrendResponse;
 import com.reps.entity.ExerciseSet;
 import com.reps.entity.SessionExercise;
 import com.reps.entity.WorkoutSession;
 import com.reps.enums.SuggestionType;
+import com.reps.enums.TrendDirection;
 import com.reps.service.ProgressionService.Snapshot;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -74,8 +76,17 @@ class ProgressionServiceTest {
         }
 
         @Test
-        void doesNotFireWhenAnySetBelowRepsMax() {
-            assertNull(eval(List.of(snap("60", 10, 10, 9)), 6, 10, 3, false));
+        void firesWhenOnlyTheTopSetHitsRepsMax() {
+            // The first set is the freshest — topping the range there is the
+            // trigger, rather than waiting weeks for the later sets to catch up.
+            var s = eval(List.of(snap("60", 10, 9, 8)), 6, 10, 3, false);
+            assertNotNull(s);
+            assertEquals(SuggestionType.INCREASE_WEIGHT, s.getType());
+        }
+
+        @Test
+        void doesNotFireWhenNoSetReachesRepsMax() {
+            assertNull(eval(List.of(snap("60", 9, 9, 9)), 6, 10, 3, false));
         }
 
         @Test
@@ -158,6 +169,28 @@ class ProgressionServiceTest {
             var s = eval(history, 6, 10, 3, false);
             assertTrue(s == null || s.getType() != SuggestionType.DELOAD);
         }
+
+        @Test
+        void oneImprovingSetVetoesTheDeload() {
+            // Set 2 is climbing even though the session total falls — that is a
+            // shifting effort distribution, not a regression.
+            var history = List.of(
+                    snap("60", 9, 9, 9),
+                    snap("60", 8, 9, 8),
+                    snap("60", 7, 10, 7));
+            assertNull(eval(history, 6, 12, 3, false));
+        }
+
+        @Test
+        void firesWhenEverySetSlidesSetForSet() {
+            var history = List.of(
+                    snap("60", 9, 9, 9),
+                    snap("60", 8, 9, 8),
+                    snap("60", 7, 8, 7));
+            var s = eval(history, 6, 12, 3, false);
+            assertNotNull(s);
+            assertEquals(SuggestionType.DELOAD, s.getType());
+        }
     }
 
     // ── R3: SWAP_EXERCISE ─────────────────────────────────────────────────
@@ -192,12 +225,13 @@ class ProgressionServiceTest {
 
         @Test
         void doesNotFireWhenRepsAreClimbing() {
+            // repsMax 12 keeps R1 out of the way — this is about the plateau rule
             var history = List.of(
                     snap("60", 8, 8, 8),
                     snap("60", 9, 8, 8),
                     snap("60", 9, 9, 9),
                     snap("60", 10, 9, 9));
-            assertNull(eval(history, 6, 10, 3, false));
+            assertNull(eval(history, 6, 12, 3, false));
         }
 
         @Test
@@ -225,6 +259,102 @@ class ProgressionServiceTest {
                 snap("60", 8, 7, 7),
                 snap("60", 8, 8, 8));
         assertNull(eval(history, 6, 10, 3, false));
+    }
+
+    // ── Week-to-week trend ────────────────────────────────────────────────
+
+    @Nested
+    @DisplayName("trend — how the last two completed sessions compare")
+    class Trend {
+
+        @Test
+        void needsTwoSessionsToCompare() {
+            assertNull(service.trend(List.of(snap("60", 8, 8, 8))));
+            assertNull(service.trend(List.of()));
+        }
+
+        @Test
+        void repsUpAtTheSameWeightIsProgress() {
+            var t = service.trend(List.of(snap("60", 8, 8, 8), snap("60", 10, 9, 8)));
+            assertNotNull(t);
+            assertEquals(TrendDirection.UP, t.getDirection());
+            assertEquals("Progressing", t.getHeadline());
+            assertEquals(3, t.getTotalRepsDelta());
+            // Reads like a sentence, listing only the sets that moved
+            assertEquals("You increased reps on set 1 by 2, and set 2 by 1 at 60 kg. Keep this up.",
+                    t.getMessage());
+        }
+
+        @Test
+        void identicalSessionIsMaintaining() {
+            var t = service.trend(List.of(snap("60", 8, 8, 8), snap("60", 8, 8, 8)));
+            assertNotNull(t);
+            assertEquals(TrendDirection.FLAT, t.getDirection());
+            assertEquals(0, t.getTotalRepsDelta());
+        }
+
+        @Test
+        void repsDownAtTheSameWeightIsRegression() {
+            var t = service.trend(List.of(snap("60", 9, 9, 8), snap("60", 8, 8, 8)));
+            assertNotNull(t);
+            assertEquals(TrendDirection.DOWN, t.getDirection());
+            assertEquals(-2, t.getTotalRepsDelta());
+        }
+
+        @Test
+        void addingWeightStillCountsWhenRepsDipSlightly() {
+            // 62.5 kg × 9 out-lifts 60 kg × 10 on estimated 1RM
+            var t = service.trend(List.of(snap("60", 10, 10, 10), snap("62.5", 9, 9, 9)));
+            assertNotNull(t);
+            assertEquals(TrendDirection.UP, t.getDirection());
+            assertTrue(t.getTotalRepsDelta() < 0);
+            assertEquals(0, new BigDecimal("2.50").compareTo(t.getWeightDeltaKg()));
+        }
+
+        @Test
+        void addingWeightDoesNotExcuseACollapse() {
+            var t = service.trend(List.of(snap("60", 10, 10, 10), snap("62.5", 5, 5, 5)));
+            assertNotNull(t);
+            assertEquals(TrendDirection.DOWN, t.getDirection());
+        }
+
+        @Test
+        void droppingWeightAtTheSameRepsIsRegression() {
+            var t = service.trend(List.of(snap("60", 8, 8, 8), snap("55", 8, 8, 8)));
+            assertNotNull(t);
+            assertEquals(TrendDirection.DOWN, t.getDirection());
+            // …and the wording must not claim reps fell, because they did not
+            assertFalse(t.getMessage().contains("reps came down"));
+        }
+
+        @Test
+        void comparesOnlyTheSetNumbersLoggedInBothSessions() {
+            // A 4th set was added this time — it has no counterpart, so it is
+            // left out rather than counted as a gain.
+            var t = service.trend(List.of(snap("60", 8, 8, 8), snap("60", 8, 9, 8, 7)));
+            assertNotNull(t);
+            assertEquals(3, t.getSets().size());
+            assertEquals(1, t.getTotalRepsDelta());
+        }
+
+        @Test
+        void bodyweightComparisonFallsBackToReps() {
+            var t = service.trend(List.of(snap(null, 12, 12), snap(null, 14, 13)));
+            assertNotNull(t);
+            assertEquals(TrendDirection.UP, t.getDirection());
+            assertFalse(t.getMessage().contains("kg"));
+        }
+
+        @Test
+        void setDeltasCarryBothSidesOfTheComparison() {
+            var t = service.trend(List.of(snap("60", 8, 8), snap("60", 10, 8)));
+            assertNotNull(t);
+            ProgressionTrendResponse.SetDelta first = t.getSets().get(0);
+            assertEquals(1, first.getSetNumber());
+            assertEquals(8, first.getPreviousReps());
+            assertEquals(10, first.getReps());
+            assertEquals(2, first.getRepsDelta());
+        }
     }
 
     // ── Snapshot grouping from entity history ─────────────────────────────

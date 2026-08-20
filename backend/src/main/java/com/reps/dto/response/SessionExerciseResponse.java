@@ -23,4 +23,11 @@ public class SessionExerciseResponse {
     private List<ExerciseSetResponse> previousSets;
     /** Progression suggestion (null = keep doing what you're doing). Only computed for active sessions. */
     private ProgressionSuggestionResponse suggestion;
+    /**
+     * How this exercise went last session compared with the one before it
+     * (arrow up / neutral / down). Null until there are two sessions to
+     * compare. Recomputed whenever the session is loaded — starting a workout
+     * is what refreshes it.
+     */
+    private ProgressionTrendResponse trend;
 }

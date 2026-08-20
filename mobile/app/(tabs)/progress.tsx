@@ -13,7 +13,8 @@ import Svg, {
 } from 'react-native-svg';
 import { progressApi } from '@/services/api/progress';
 import { programsApi } from '@/services/api/programs';
-import { ExerciseResponse, BodyWeightResponse } from '@/types';
+import { ExerciseResponse, BodyWeightResponse, ProgressionTrend } from '@/types';
+import { TrendBadge, TrendSheet } from '@/components/TrendBadge';
 import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/constants/theme';
 import { storage } from '@/utils/storage';
 
@@ -348,10 +349,13 @@ function WorkoutProgressCard({ exercises, selectedIds, onToggle, chartWidth }: {
 
 // ─── Exercise tile (All mode) ────────────────────────────────────────────────────
 
-function ExerciseTile({ exercise, chartWidth }: {
+function ExerciseTile({ exercise, chartWidth, trend }: {
   exercise: ExerciseResponse;
   chartWidth: number;
+  /** Week-to-week trend; absent until the exercise has two completed sessions. */
+  trend?: ProgressionTrend;
 }) {
+  const [trendOpen, setTrendOpen]           = useState(false);
   const [expanded, setExpanded]             = useState(false);
   const [chartType, setChartType]           = useState<'weight' | 'reps'>('weight');
   const [selectedWeight, setSelectedWeight] = useState<number | null>(null);
@@ -470,8 +474,20 @@ function ExerciseTile({ exercise, chartWidth }: {
             ))}
           </View>
         </View>
-        <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={18} color={Colors.textMuted} />
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm }}>
+          {/* Week-to-week trend — tap for the set-by-set breakdown */}
+          {trend && <TrendBadge trend={trend} size={22} onPress={() => setTrendOpen(true)} />}
+          <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={18} color={Colors.textMuted} />
+        </View>
       </TouchableOpacity>
+
+      {trendOpen && trend && (
+        <TrendSheet
+          exerciseName={exercise.name}
+          trend={trend}
+          onClose={() => setTrendOpen(false)}
+        />
+      )}
 
       {/* Expanded content */}
       {expanded && (
@@ -645,6 +661,17 @@ export default function ProgressScreen() {
     queryKey: ['bodyWeight'],
     queryFn: progressApi.getBodyWeightHistory,
   });
+  // One call for every exercise's week-to-week trend, so the arrows are on the
+  // tiles without expanding them. Invalidated when a workout is completed.
+  const { data: trends } = useQuery({
+    queryKey: ['exerciseTrends'],
+    queryFn: progressApi.getTrends,
+  });
+  const trendsByExercise = useMemo(() => {
+    const map: Record<number, ProgressionTrend> = {};
+    (trends ?? []).forEach((t) => { map[t.exerciseId] = t.trend; });
+    return map;
+  }, [trends]);
 
   const workoutTemplates = program?.workoutTemplates ?? [];
 
@@ -794,7 +821,8 @@ export default function ProgressScreen() {
 
         {/* All mode: individual exercise tiles */}
         {selectedWorkoutId === null && visibleExercises.map((ex) => (
-          <ExerciseTile key={ex.id} exercise={ex} chartWidth={chartWidth} />
+          <ExerciseTile key={ex.id} exercise={ex} chartWidth={chartWidth}
+            trend={trendsByExercise[ex.id]} />
         ))}
 
         {/* Body weight — always shown when data exists */}

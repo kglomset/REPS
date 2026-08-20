@@ -420,12 +420,14 @@ public class WorkoutService {
             }
         }
 
-        // Progression suggestion — only meaningful while the session is active
-        ProgressionSuggestionResponse suggestion = null;
-        if (session.getCompletedAt() == null) {
-            suggestion = progressionService.suggestFor(
-                    session.getUser().getId(), se.getExercise(), repsMin, repsMax, targetSets);
-        }
+        // Progression: a "do this next" suggestion only makes sense while the
+        // session is active, but the week-to-week trend arrow is computed either
+        // way — on a finished session it compares what was just logged with the
+        // session before it, which is what the summary screen shows.
+        var progression = progressionService.analyse(
+                session.getUser().getId(), se.getExercise(), repsMin, repsMax, targetSets,
+                session.getCompletedAt() == null);
+        ProgressionSuggestionResponse suggestion = progression.suggestion();
 
         return SessionExerciseResponse.builder()
                 .id(se.getId())
@@ -440,6 +442,7 @@ public class WorkoutService {
                 .sets(se.getSets().stream().map(this::toSetResponse).toList())
                 .previousSets(prevSets)
                 .suggestion(suggestion)
+                .trend(progression.trend())
                 .build();
     }
 
