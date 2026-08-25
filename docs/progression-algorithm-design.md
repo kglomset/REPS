@@ -86,7 +86,19 @@ Separate from R1–R4: an arrow on every exercise tile saying how the **last two
 | Working weight | Decided by |
 |---|---|
 | unchanged | net rep change over the set numbers logged in both sessions |
-| changed | best estimated 1RM, with a **1 % dead-band** — so trading a couple of reps for extra load reads as progress, not regression |
+| **up** | always `UP` |
+| down | best estimated 1RM, with a **1 % dead-band** |
+
+> **Revised Aug 2026 — a heavier bar is never a regression.** Weight up used to
+> be judged on estimated 1RM, so a jump that cost more reps than the load made
+> back scored as `DOWN`. That is backwards: double progression *works* by adding
+> weight and rebuilding reps, and flagging the drop in red told the user off for
+> doing exactly the right thing. Any increase in working weight now reads as
+> progress, and the message names the rep ceiling to build back towards —
+> "You added 2.5 kg and reps came down on set 1 by 3 — exactly what should
+> happen at a heavier load. Build the reps back up to 10, then add weight
+> again." A load that was jumped too far still surfaces separately, as R2's
+> deload once the reps keep sliding at the new weight.
 
 `UP` = Progressing, `FLAT` = Maintaining, `DOWN` = Regressing. Null until the exercise has two completed sessions, or if the two sessions share no set numbers.
 

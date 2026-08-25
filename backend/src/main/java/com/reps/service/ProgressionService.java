@@ -121,7 +121,7 @@ public class ProgressionService {
                 suggestion.setAlternatives(findAlternatives(userId, exercise));
             }
         }
-        return new ExerciseProgression(suggestion, trend(snapshots));
+        return new ExerciseProgression(suggestion, trend(snapshots, repsMin, repsMax));
     }
 
     /** What the UI needs for one exercise tile. */
@@ -143,7 +143,9 @@ public class ProgressionService {
 
         List<ExerciseTrendResponse> result = new ArrayList<>();
         byExercise.forEach((exerciseId, sets) -> {
-            ProgressionTrendResponse trend = trend(toSnapshots(sets));
+            // No template here, so the rep ceiling in the message falls back to
+            // the default range.
+            ProgressionTrendResponse trend = trend(toSnapshots(sets), null, null);
             if (trend == null) return; // nothing to compare against yet
             result.add(ExerciseTrendResponse.builder()
                     .exerciseId(exerciseId)
@@ -404,14 +406,17 @@ public class ProgressionService {
      * common case and the one worth celebrating: reps climbing week to week is
      * progress even though the load never moved.
      *
-     * Weight changed → estimated 1RM decides, with a 1 % dead-band, so trading
-     * a couple of reps for extra load still reads as progress rather than a
-     * regression.
+     * Weight went UP → always progress. Reps fall when the load rises; that is
+     * the mechanism of double progression, not a regression, and the message
+     * points at the rep ceiling to rebuild towards. Flagging it red would tell
+     * the user off for doing exactly the right thing.
+     *
+     * Weight went DOWN → estimated 1RM decides, with a 1 % dead-band.
      *
      * Returns null when there is nothing to compare against yet (first time
      * doing the exercise), or when the two sessions share no set numbers.
      */
-    ProgressionTrendResponse trend(List<Snapshot> snapshots) {
+    ProgressionTrendResponse trend(List<Snapshot> snapshots, Integer repsMin, Integer repsMax) {
         if (snapshots.size() < 2) return null;
         Snapshot previous = snapshots.get(snapshots.size() - 2);
         Snapshot latest = snapshots.get(snapshots.size() - 1);
@@ -435,7 +440,7 @@ public class ProgressionService {
         return ProgressionTrendResponse.builder()
                 .direction(direction)
                 .headline(headline(direction))
-                .message(trendMessage(direction, weightDelta, repsDelta, deltas, latest))
+                .message(trendMessage(direction, weightDelta, repsDelta, deltas, latest, repsMax))
                 .weightDeltaKg(weightDelta)
                 .totalRepsDelta(repsDelta)
                 .previousDate(previous.date())
@@ -446,6 +451,10 @@ public class ProgressionService {
 
     private TrendDirection trendDirection(BigDecimal weightDelta, int repsDelta,
                                           Snapshot previous, Snapshot latest) {
+        // Heavier than last time is progress, full stop. Reps are supposed to
+        // drop when the load goes up; rebuilding them is the next block of work,
+        // not evidence of going backwards.
+        if (weightDelta.signum() > 0) return TrendDirection.UP;
         if (weightDelta.signum() == 0) return byReps(repsDelta);
 
         BigDecimal before = previous.bestE1Rm();
@@ -476,7 +485,7 @@ public class ProgressionService {
 
     /** Short, plain-language explanation of the arrow. */
     private String trendMessage(TrendDirection direction, BigDecimal weightDelta, int repsDelta,
-                                List<SetDelta> deltas, Snapshot latest) {
+                                List<SetDelta> deltas, Snapshot latest, Integer repsMax) {
         List<SetDelta> gains = deltas.stream().filter(d -> d.getRepsDelta() > 0).toList();
         List<SetDelta> losses = deltas.stream().filter(d -> d.getRepsDelta() < 0).toList();
         boolean bodyweight = latest.workingWeight().signum() <= 0;
@@ -484,20 +493,20 @@ public class ProgressionService {
 
         if (weightDelta.signum() > 0) {
             String added = "You added " + formatKg(weightDelta.abs()) + " kg";
+            int ceiling = repsMax != null ? repsMax : FALLBACK_REPS_MAX;
             if (repsDelta > 0) {
-                return added + " and still increased reps on " + join(gains) + ". Strong session.";
+                return added + " and still increased reps on " + join(gains)
+                        + ". Strong session — keep going until you hit " + ceiling + " reps.";
             }
             if (repsDelta == 0) {
-                return added + " and held every rep" + at + ". Strong session.";
+                return added + " and held every rep" + at
+                        + ". Strong session — next stop is " + ceiling + " reps.";
             }
-            String easedOff = added + ", so reps eased off on " + join(losses) + ". ";
-            return switch (direction) {
-                case DOWN -> added + " but reps fell on " + join(losses)
-                        + " — further than the extra load accounts for."
-                        + " Stay at this weight until they come back.";
-                case FLAT -> easedOff + "An even trade — same estimated 1RM as last time.";
-                case UP -> easedOff + "That is the trade, and you came out ahead.";
-            };
+            // The expected case after a jump: heavier bar, fewer reps. Say what
+            // to do about it rather than scoring it.
+            return added + " and reps came down on " + join(losses)
+                    + " — exactly what should happen at a heavier load."
+                    + " Build the reps back up to " + ceiling + ", then add weight again.";
         }
 
         if (weightDelta.signum() < 0) {

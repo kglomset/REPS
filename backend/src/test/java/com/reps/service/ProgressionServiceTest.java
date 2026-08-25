@@ -267,15 +267,20 @@ class ProgressionServiceTest {
     @DisplayName("trend — how the last two completed sessions compare")
     class Trend {
 
+        /** Most cases do not care about the rep ceiling in the message. */
+        private ProgressionTrendResponse trend(List<Snapshot> snaps) {
+            return service.trend(snaps, null, null);
+        }
+
         @Test
         void needsTwoSessionsToCompare() {
-            assertNull(service.trend(List.of(snap("60", 8, 8, 8))));
-            assertNull(service.trend(List.of()));
+            assertNull(trend(List.of(snap("60", 8, 8, 8))));
+            assertNull(trend(List.of()));
         }
 
         @Test
         void repsUpAtTheSameWeightIsProgress() {
-            var t = service.trend(List.of(snap("60", 8, 8, 8), snap("60", 10, 9, 8)));
+            var t = trend(List.of(snap("60", 8, 8, 8), snap("60", 10, 9, 8)));
             assertNotNull(t);
             assertEquals(TrendDirection.UP, t.getDirection());
             assertEquals("Progressing", t.getHeadline());
@@ -287,7 +292,7 @@ class ProgressionServiceTest {
 
         @Test
         void identicalSessionIsMaintaining() {
-            var t = service.trend(List.of(snap("60", 8, 8, 8), snap("60", 8, 8, 8)));
+            var t = trend(List.of(snap("60", 8, 8, 8), snap("60", 8, 8, 8)));
             assertNotNull(t);
             assertEquals(TrendDirection.FLAT, t.getDirection());
             assertEquals(0, t.getTotalRepsDelta());
@@ -295,7 +300,7 @@ class ProgressionServiceTest {
 
         @Test
         void repsDownAtTheSameWeightIsRegression() {
-            var t = service.trend(List.of(snap("60", 9, 9, 8), snap("60", 8, 8, 8)));
+            var t = trend(List.of(snap("60", 9, 9, 8), snap("60", 8, 8, 8)));
             assertNotNull(t);
             assertEquals(TrendDirection.DOWN, t.getDirection());
             assertEquals(-2, t.getTotalRepsDelta());
@@ -304,7 +309,7 @@ class ProgressionServiceTest {
         @Test
         void addingWeightStillCountsWhenRepsDipSlightly() {
             // 62.5 kg × 9 out-lifts 60 kg × 10 on estimated 1RM
-            var t = service.trend(List.of(snap("60", 10, 10, 10), snap("62.5", 9, 9, 9)));
+            var t = trend(List.of(snap("60", 10, 10, 10), snap("62.5", 9, 9, 9)));
             assertNotNull(t);
             assertEquals(TrendDirection.UP, t.getDirection());
             assertTrue(t.getTotalRepsDelta() < 0);
@@ -312,15 +317,28 @@ class ProgressionServiceTest {
         }
 
         @Test
-        void addingWeightDoesNotExcuseACollapse() {
-            var t = service.trend(List.of(snap("60", 10, 10, 10), snap("62.5", 5, 5, 5)));
+        void addingWeightIsProgressEvenWhenRepsFallHard() {
+            // Double progression works by jumping the load and rebuilding reps.
+            // Scoring the drop as a regression would tell the user off for doing
+            // the right thing.
+            var t = service.trend(List.of(snap("60", 10, 10, 10), snap("62.5", 5, 5, 5)), 6, 10);
             assertNotNull(t);
-            assertEquals(TrendDirection.DOWN, t.getDirection());
+            assertEquals(TrendDirection.UP, t.getDirection());
+            assertEquals("Progressing", t.getHeadline());
+        }
+
+        @Test
+        void addingWeightPointsAtTheRepCeilingToRebuildTowards() {
+            var t = service.trend(List.of(snap("60", 10, 10, 10), snap("62.5", 7, 7, 7)), 6, 10);
+            assertNotNull(t);
+            assertTrue(t.getMessage().contains("Build the reps back up to 10"),
+                    t.getMessage());
+            assertFalse(t.getMessage().toLowerCase().contains("regress"));
         }
 
         @Test
         void droppingWeightAtTheSameRepsIsRegression() {
-            var t = service.trend(List.of(snap("60", 8, 8, 8), snap("55", 8, 8, 8)));
+            var t = trend(List.of(snap("60", 8, 8, 8), snap("55", 8, 8, 8)));
             assertNotNull(t);
             assertEquals(TrendDirection.DOWN, t.getDirection());
             // …and the wording must not claim reps fell, because they did not
@@ -331,7 +349,7 @@ class ProgressionServiceTest {
         void comparesOnlyTheSetNumbersLoggedInBothSessions() {
             // A 4th set was added this time — it has no counterpart, so it is
             // left out rather than counted as a gain.
-            var t = service.trend(List.of(snap("60", 8, 8, 8), snap("60", 8, 9, 8, 7)));
+            var t = trend(List.of(snap("60", 8, 8, 8), snap("60", 8, 9, 8, 7)));
             assertNotNull(t);
             assertEquals(3, t.getSets().size());
             assertEquals(1, t.getTotalRepsDelta());
@@ -339,7 +357,7 @@ class ProgressionServiceTest {
 
         @Test
         void bodyweightComparisonFallsBackToReps() {
-            var t = service.trend(List.of(snap(null, 12, 12), snap(null, 14, 13)));
+            var t = trend(List.of(snap(null, 12, 12), snap(null, 14, 13)));
             assertNotNull(t);
             assertEquals(TrendDirection.UP, t.getDirection());
             assertFalse(t.getMessage().contains("kg"));
@@ -347,7 +365,7 @@ class ProgressionServiceTest {
 
         @Test
         void setDeltasCarryBothSidesOfTheComparison() {
-            var t = service.trend(List.of(snap("60", 8, 8), snap("60", 10, 8)));
+            var t = trend(List.of(snap("60", 8, 8), snap("60", 10, 8)));
             assertNotNull(t);
             ProgressionTrendResponse.SetDelta first = t.getSets().get(0);
             assertEquals(1, first.getSetNumber());

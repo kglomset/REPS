@@ -7,6 +7,12 @@ interface WorkoutState {
   restTimerActive: boolean;
   restTimerSeconds: number;
   restTimerRemaining: number;
+  /**
+   * Epoch ms the current rest ends at. The countdown text is driven by the
+   * one-second tick, but the progress bar animates against this so it runs
+   * smoothly and stays honest if a tick is late or dropped.
+   */
+  restTimerEndsAt: number | null;
 
   startSession: (templateId: number, date?: string) => Promise<WorkoutSessionResponse>;
   setActiveSession: (session: WorkoutSessionResponse | null) => void;
@@ -21,6 +27,7 @@ export const useWorkoutStore = create<WorkoutState>((set) => ({
   restTimerActive: false,
   restTimerSeconds: 120,
   restTimerRemaining: 0,
+  restTimerEndsAt: null,
 
   startSession: async (templateId, date) => {
     const session = await workoutsApi.startSession(templateId, date);
@@ -31,17 +38,23 @@ export const useWorkoutStore = create<WorkoutState>((set) => ({
   setActiveSession: (session) => set({ activeSession: session }),
 
   startRestTimer: (seconds) => {
-    set({ restTimerActive: true, restTimerSeconds: seconds, restTimerRemaining: seconds });
+    set({
+      restTimerActive: true,
+      restTimerSeconds: seconds,
+      restTimerRemaining: seconds,
+      restTimerEndsAt: Date.now() + seconds * 1000,
+    });
   },
 
   tickRestTimer: () => {
     set((state) => {
       const remaining = state.restTimerRemaining - 1;
       return remaining <= 0
-        ? { restTimerActive: false, restTimerRemaining: 0 }
+        ? { restTimerActive: false, restTimerRemaining: 0, restTimerEndsAt: null }
         : { restTimerRemaining: remaining };
     });
   },
 
-  stopRestTimer: () => set({ restTimerActive: false, restTimerRemaining: 0 }),
+  stopRestTimer: () =>
+    set({ restTimerActive: false, restTimerRemaining: 0, restTimerEndsAt: null }),
 }));

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator, Alert, Modal, ScrollView, Text,
+  ActivityIndicator, Alert, Animated, Easing, Modal, ScrollView, Text,
   TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -413,7 +413,7 @@ export default function ActiveWorkoutScreen() {
     // Rest timer: myo-reps use a short 10s cluster rest; everything else uses
     // the exercise's configured rest.
     if (restEnabled) {
-      const restDur = st.method === 'MYOREPS' ? 10 : (st.restSeconds ?? 120);
+      const restDur = st.method === 'MYOREPS' ? 15 : (st.restSeconds ?? 120);
       const groupId = st.supersetGroupId;
       if (groupId) {
         const groupExIds = activeSession!.exercises
@@ -682,6 +682,7 @@ export default function ActiveWorkoutScreen() {
                 onOpenSupersetPicker={(id) => setSupersetPickerForId(id)}
                 onRemoveFromGroup={handleRemoveFromGroup}
                 onRemoveExercise={(ex) => setRemoveConfirmFor(ex)}
+                onOpenSwap={(id) => setSwapForId(id)}
                 suggestions={visibleSuggestions}
                 onOpenSuggestion={(ex) => setSuggestionFor(ex)}
                 onOpenTrend={(ex, t) => setTrendFor({ name: ex.exercise.name, trend: t })}
@@ -855,9 +856,32 @@ function buildGroups(
 // ─── Rest timer bar ───────────────────────────────────────────────────────────
 
 function RestTimerBar() {
-  const { restTimerActive, restTimerRemaining, restTimerSeconds } = useWorkoutStore();
+  const {
+    restTimerActive, restTimerRemaining, restTimerSeconds, restTimerEndsAt,
+  } = useWorkoutStore();
+
+  // The bar animates continuously to the end of the rest rather than being
+  // redrawn once per tick, which is what made it look like it was stuttering.
+  // Driven off restTimerEndsAt, so it does not restart on every tick and picks
+  // up the real remaining time if a tick arrives late.
+  const progress = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (!restTimerActive || !restTimerEndsAt || restTimerSeconds <= 0) return;
+    const msLeft = Math.max(0, restTimerEndsAt - Date.now());
+    progress.setValue(msLeft / (restTimerSeconds * 1000));
+    const animation = Animated.timing(progress, {
+      toValue: 0,
+      duration: msLeft,
+      easing: Easing.linear,
+      // Width cannot be driven natively; the bar is 3px so the JS driver is fine.
+      useNativeDriver: false,
+    });
+    animation.start();
+    return () => animation.stop();
+  }, [restTimerActive, restTimerEndsAt, restTimerSeconds]);
+
   if (!restTimerActive) return null;
-  const progress = restTimerSeconds > 0 ? restTimerRemaining / restTimerSeconds : 0;
   const mins = Math.floor(restTimerRemaining / 60);
   const secs = restTimerRemaining % 60;
   return (
@@ -873,8 +897,12 @@ function RestTimerBar() {
       </View>
       <View style={{ height: 3, backgroundColor: Colors.surfaceSubtle,
         borderRadius: 2, overflow: 'hidden' }}>
-        <View style={{ height: 3, width: `${progress * 100}%`,
-          backgroundColor: Colors.primary, borderRadius: 2 }} />
+        <Animated.View style={{ height: 3, borderRadius: 2,
+          backgroundColor: Colors.primary,
+          width: progress.interpolate({
+            inputRange: [0, 1],
+            outputRange: ['0%', '100%'],
+          }) }} />
       </View>
     </View>
   );
@@ -1018,7 +1046,7 @@ function ExerciseBlock({ ex, exState, onUpdateState, onSetComplete,
 
 function SupersetBlock({ exercises, exStates, onUpdateState, onSetComplete,
   allSessionExercises, onOpenSupersetPicker, onRemoveFromGroup, onRemoveExercise,
-  suggestions, onOpenSuggestion, onOpenTrend }: {
+  onOpenSwap, suggestions, onOpenSuggestion, onOpenTrend }: {
   exercises: SessionExerciseResponse[];
   exStates: Record<number, ExState>;
   onUpdateState: (exId: number, p: Partial<ExState>) => void;
@@ -1027,6 +1055,7 @@ function SupersetBlock({ exercises, exStates, onUpdateState, onSetComplete,
   onOpenSupersetPicker: (exId: number) => void;
   onRemoveFromGroup: (exId: number) => void;
   onRemoveExercise: (ex: SessionExerciseResponse) => void;
+  onOpenSwap: (exId: number) => void;
   suggestions?: Record<number, ProgressionSuggestion>;
   onOpenSuggestion?: (ex: SessionExerciseResponse) => void;
   onOpenTrend: (ex: SessionExerciseResponse, trend: ProgressionTrend) => void;
@@ -1078,20 +1107,14 @@ function SupersetBlock({ exercises, exStates, onUpdateState, onSetComplete,
                     onPress={() => onOpenSuggestion(ex)}
                   />
                 )}
-                {/* Ungroup */}
-                <TouchableOpacity
-                  onPress={() => onRemoveFromGroup(ex.id)}
-                  style={{ padding: 4, marginTop: 2 }}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                  <Ionicons name="close-circle-outline" size={16} color={Colors.textMuted} />
-                </TouchableOpacity>
-                {/* Remove from workout entirely */}
-                <TouchableOpacity
-                  onPress={() => onRemoveExercise(ex)}
-                  style={{ padding: 4, marginTop: 2 }}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                  <Ionicons name="trash-outline" size={15} color={Colors.textMuted} />
-                </TouchableOpacity>
+                {/* Same kebab as an ungrouped exercise — ungroup and delete used
+                    to sit here as bare icons, crowding the trend and suggestion
+                    badges and inviting mis-taps. */}
+                <GroupMemberMenu
+                  onSwap={() => onOpenSwap(ex.id)}
+                  onRemoveFromGroup={() => onRemoveFromGroup(ex.id)}
+                  onRemoveExercise={() => onRemoveExercise(ex)}
+                />
               </View>
               {st.method === 'MYOREPS' ? (
                 <MyorepsTable
@@ -1590,6 +1613,37 @@ function ExerciseMenu({ visible, inGroup, onClose, onGroupWith, onRemoveFromGrou
         </View>
       </TouchableOpacity>
     </Modal>
+  );
+}
+
+/**
+ * Kebab for one member of a superset or circle. Same actions as the standalone
+ * exercise menu, minus "group with" — it is already in a group.
+ */
+function GroupMemberMenu({ onSwap, onRemoveFromGroup, onRemoveExercise }: {
+  onSwap: () => void;
+  onRemoveFromGroup: () => void;
+  onRemoveExercise: () => void;
+}) {
+  const [visible, setVisible] = useState(false);
+  const close = () => setVisible(false);
+  return (
+    <>
+      <TouchableOpacity onPress={() => setVisible(true)}
+        style={{ paddingHorizontal: 6, paddingVertical: 4 }}
+        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+        <Ionicons name="ellipsis-vertical" size={16} color={Colors.textMuted} />
+      </TouchableOpacity>
+      <ExerciseMenu
+        visible={visible}
+        inGroup
+        onClose={close}
+        onGroupWith={close}
+        onRemoveFromGroup={() => { close(); onRemoveFromGroup(); }}
+        onSwap={() => { close(); onSwap(); }}
+        onRemoveExercise={() => { close(); onRemoveExercise(); }}
+      />
+    </>
   );
 }
 
