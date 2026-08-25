@@ -1,5 +1,6 @@
 package com.reps.entity;
 
+import com.reps.enums.MovementPattern;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -28,6 +29,16 @@ public class Exercise {
 
     @Column(length = 512)
     private String imageUrl;
+
+    /**
+     * Multi-joint or single-joint. Curated per exercise in V14 — it cannot be
+     * inferred from the muscle mapping. Drives rep/rest prescription, the
+     * compound bias when building a program, and myo-rep eligibility.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    @Builder.Default
+    private MovementPattern movementPattern = MovementPattern.ISOLATION;
 
     /** Whether this is a custom user-created exercise (null = global). */
     @ManyToOne(fetch = FetchType.LAZY)

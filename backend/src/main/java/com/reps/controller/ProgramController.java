@@ -1,9 +1,13 @@
 package com.reps.controller;
 
 import com.reps.dto.request.CreateProgramRequest;
+import com.reps.dto.request.ProgramDraftRequest;
 import com.reps.dto.request.UpdateProgramStructureRequest;
+import com.reps.dto.response.ProgramDraftResponse;
 import com.reps.dto.response.ProgramResponse;
+import com.reps.dto.response.SplitOptionResponse;
 import com.reps.security.UserPrincipal;
+import com.reps.service.ProgramBuilderService;
 import com.reps.service.ProgramService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -21,12 +25,32 @@ import java.util.Optional;
 public class ProgramController {
 
     private final ProgramService programService;
+    private final ProgramBuilderService programBuilderService;
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public ProgramResponse create(@AuthenticationPrincipal UserPrincipal principal,
                                   @Valid @RequestBody CreateProgramRequest req) {
         return programService.createProgram(principal.getId(), req);
+    }
+
+    /**
+     * Split options for a given number of training days, best first — splits
+     * that hit every muscle at least twice a week lead the list.
+     */
+    @GetMapping("/splits")
+    public List<SplitOptionResponse> splits(@RequestParam int daysPerWeek) {
+        return programBuilderService.splitsFor(daysPerWeek);
+    }
+
+    /**
+     * Propose a program from the guided builder's answers. Nothing is saved —
+     * the client renders this, lets the user edit it, and then POSTs /programs.
+     */
+    @PostMapping("/draft")
+    public ProgramDraftResponse draft(@AuthenticationPrincipal UserPrincipal principal,
+                                      @Valid @RequestBody ProgramDraftRequest req) {
+        return programBuilderService.draft(principal.getId(), req);
     }
 
     @GetMapping

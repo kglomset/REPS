@@ -17,6 +17,8 @@ public class ProgramResponse {
     private TrainingGoal goal;
     private Integer strengthDaysPerWeek;
     private Integer cardioDaysPerWeek;
+    /** Weekly set target per muscle group this program was built around. */
+    private Integer weeklySetsPerMuscle;
     private CardioType cardioType;
     private Boolean active;
     private Instant createdAt;

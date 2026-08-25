@@ -1,17 +1,27 @@
 import client from './client';
 import { ENDPOINTS } from '@/constants/api';
-import { ProgramResponse, CreateProgramForm } from '@/types';
+import {
+  ProgramResponse, CreateProgramForm,
+  SplitOptionResponse, ProgramDraftRequest, ProgramDraftResponse,
+} from '@/types';
 
 export interface BuilderExercisePayload {
   exerciseId: number;
   sets: number;
+  /** Legacy single rep target; send repsMin/repsMax instead where known. */
   reps: number;
+  /** Per-exercise prescription; the backend falls back to the goal range. */
+  repsMin?: number;
+  repsMax?: number;
+  restSeconds?: number;
   trainingMethod: string;
   supersetGroupId?: string | null;
 }
 
 export interface CreateProgramPayload extends CreateProgramForm {
-  /** Optional custom-built structure (Build from Scratch). */
+  /** Weekly set target per muscle group the program was built around. */
+  weeklySetsPerMuscle?: number;
+  /** Optional custom-built structure (Build from Scratch / guided builder). */
   days?: {
     name?: string;
     dayIndex?: number;
@@ -22,6 +32,20 @@ export interface CreateProgramPayload extends CreateProgramForm {
 export const programsApi = {
   list: () =>
     client.get<ProgramResponse[]>(ENDPOINTS.programs.list).then((r) => r.data),
+
+  // ── Guided builder ────────────────────────────────────────────────────
+
+  /** Split options for a frequency, best first (2+ sessions per muscle lead). */
+  getSplits: (daysPerWeek: number) =>
+    client
+      .get<SplitOptionResponse[]>(ENDPOINTS.programBuilder.splits(daysPerWeek))
+      .then((r) => r.data),
+
+  /** Propose a program. Nothing is saved — the user edits this, then creates. */
+  draft: (data: ProgramDraftRequest) =>
+    client
+      .post<ProgramDraftResponse>(ENDPOINTS.programBuilder.draft, data)
+      .then((r) => r.data),
 
   getActive: () =>
     client.get<ProgramResponse | null>(ENDPOINTS.programs.active).then((r) => r.data),

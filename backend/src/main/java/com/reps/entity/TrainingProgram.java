@@ -41,6 +41,13 @@ public class TrainingProgram {
     @Column(nullable = false)
     private Integer cardioDaysPerWeek;
 
+    /**
+     * Weekly set target per muscle group the program was built around. Kept so
+     * a program can be reopened and re-balanced later, rather than surviving
+     * only as a coarse fitnessLevel bucket.
+     */
+    private Integer weeklySetsPerMuscle;
+
     @Enumerated(EnumType.STRING)
     private CardioType cardioType;
 

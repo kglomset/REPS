@@ -29,6 +29,10 @@ export const ENDPOINTS = {
     standalone: '/workouts/standalone',
     standaloneItem: (id: number) => `/workouts/standalone/${id}`,
   },
+  programBuilder: {
+    splits: (daysPerWeek: number) => `/programs/splits?daysPerWeek=${daysPerWeek}`,
+    draft: '/programs/draft',
+  },
   progress: {
     exercise: (id: number) => `/progress/exercises/${id}`,
     bodyWeight: '/progress/body-weight',

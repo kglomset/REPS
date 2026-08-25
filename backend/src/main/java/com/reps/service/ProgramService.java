@@ -48,6 +48,7 @@ public class ProgramService {
                 .goal(req.getGoal())
                 .strengthDaysPerWeek(req.getStrengthDaysPerWeek())
                 .cardioDaysPerWeek(req.getCardioDaysPerWeek())
+                .weeklySetsPerMuscle(req.getWeeklySetsPerMuscle())
                 .cardioType(req.getCardioType())
                 .active(true)
                 .build();
@@ -85,20 +86,21 @@ public class ProgramService {
                 if (ex.getExerciseId() == null) continue;
                 Exercise exercise = exerciseRepo.findById(ex.getExerciseId()).orElse(null);
                 if (exercise == null) continue;
-                // Store a rep RANGE (goal-based) so double-progression has room:
-                // add reps up to repsMax, then add weight and reset to repsMin.
+                // Store a rep RANGE so double-progression has room: add reps up
+                // to repsMax, then add weight and reset to repsMin. The guided
+                // builder prescribes a range per exercise (compounds lower,
+                // isolations higher); fall back to the goal range when the
+                // client sends none.
                 int[] goalReps = repRange(program.getGoal());
                 template.getExercises().add(WorkoutTemplateExercise.builder()
                         .template(template)
                         .exercise(exercise)
                         .exerciseOrder(order++)
                         .sets(ex.getSets() != null ? ex.getSets() : 3)
-                        .repsMin(goalReps[0])
-                        .repsMax(goalReps[1])
-                        .restSeconds(defaultRest)
-                        .trainingMethod(ex.getTrainingMethod() != null
-                                ? TrainingMethod.valueOf(ex.getTrainingMethod())
-                                : TrainingMethod.STRAIGHT_SETS)
+                        .repsMin(ex.getRepsMin() != null ? ex.getRepsMin() : goalReps[0])
+                        .repsMax(ex.getRepsMax() != null ? ex.getRepsMax() : goalReps[1])
+                        .restSeconds(ex.getRestSeconds() != null ? ex.getRestSeconds() : defaultRest)
+                        .trainingMethod(parseMethod(ex.getTrainingMethod()))
                         .supersetGroupId(ex.getSupersetGroupId() != null
                                 && !ex.getSupersetGroupId().isBlank()
                                 ? ex.getSupersetGroupId() : null)
@@ -307,6 +309,16 @@ public class ProgramService {
         program.setWorkoutTemplates(templates);
     }
 
+    /** Unknown or missing method falls back to straight sets rather than throwing. */
+    private TrainingMethod parseMethod(String value) {
+        if (value == null || value.isBlank()) return TrainingMethod.STRAIGHT_SETS;
+        try {
+            return TrainingMethod.valueOf(value);
+        } catch (IllegalArgumentException ignored) {
+            return TrainingMethod.STRAIGHT_SETS;
+        }
+    }
+
     private int[] repRange(TrainingGoal goal) {
         return goal == TrainingGoal.STRENGTH ? new int[]{3, 6} : new int[]{8, 12};
     }
@@ -390,6 +402,7 @@ public class ProgramService {
                 .goal(p.getGoal())
                 .strengthDaysPerWeek(p.getStrengthDaysPerWeek())
                 .cardioDaysPerWeek(p.getCardioDaysPerWeek())
+                .weeklySetsPerMuscle(p.getWeeklySetsPerMuscle())
                 .cardioType(p.getCardioType())
                 .active(p.getActive())
                 .createdAt(p.getCreatedAt())
@@ -405,6 +418,7 @@ public class ProgramService {
                 .fitnessLevel(p.getFitnessLevel()).goal(p.getGoal())
                 .strengthDaysPerWeek(p.getStrengthDaysPerWeek())
                 .cardioDaysPerWeek(p.getCardioDaysPerWeek())
+                .weeklySetsPerMuscle(p.getWeeklySetsPerMuscle())
                 .cardioType(p.getCardioType())
                 .active(p.getActive()).createdAt(p.getCreatedAt())
                 .workoutTemplates(List.of())
@@ -437,6 +451,7 @@ public class ProgramService {
                 .id(e.getId()).name(e.getName())
                 .description(e.getDescription()).cues(e.getCues())
                 .imageUrl(e.getImageUrl())
+                .movementPattern(e.getMovementPattern())
                 .muscles(e.getMuscles().stream()
                         .map(m -> ExerciseMuscleResponse.builder()
                                 .muscleGroupId(m.getMuscleGroup().getId())

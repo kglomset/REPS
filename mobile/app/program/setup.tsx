@@ -10,23 +10,17 @@ import { Ionicons } from '@expo/vector-icons';
 import { programsApi } from '@/services/api/programs';
 import { workoutsApi } from '@/services/api/workouts';
 import { exercisesApi } from '@/services/api/exercises';
-import { FitnessLevel, TrainingGoal, CardioType, TrainingMethod, ExerciseResponse } from '@/types';
+import { FitnessLevel, TrainingGoal, TrainingMethod, ExerciseResponse } from '@/types';
+import {
+  weeklyVolume, describeVolume, MuscleVolume, EMPTY_VOLUME,
+} from '@/utils/volume';
 import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/constants/theme';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Mode = 'suggested' | 'diy' | 'standalone';
-type SuggestedStep = 'level' | 'goal' | 'days' | 'cardio' | 'confirm';
-
-interface ProgramDraft {
-  name: string;
-  fitnessLevel: FitnessLevel;
-  goal: TrainingGoal;
-  strengthDaysPerWeek: number;
-  cardioDaysPerWeek: number;
-  cardioType?: CardioType;
-}
-
+// 'guided' is not in here: it routes to its own screen (app/program/guided.tsx)
+// rather than rendering inside this one.
+type Mode = 'diy' | 'standalone';
 interface DiyExercise {
   exercise: ExerciseResponse;
   sets: number;
@@ -41,12 +35,6 @@ interface DiyDay {
   templateId?: number;
   exercises: DiyExercise[];
 }
-
-const VOLUME_INFO: Record<FitnessLevel, string> = {
-  BEGINNER: '6–10 sets / muscle / week',
-  INTERMEDIATE: '10–14 sets / muscle / week',
-  ADVANCED: '14–20 sets / muscle / week',
-};
 
 // Evidence-based weekly set ranges per muscle group, by training status
 const WEEKLY_SETS_GUIDE: Record<FitnessLevel, Array<{ muscle: string; min: number; max: number }>> = {
@@ -109,21 +97,6 @@ const AGGREGATE_DISPLAY: Record<string, 'sum' | 'max'> = {
   Abs:       'sum',
 };
 
-/** Myo-reps clusters are short, so a myo-reps exercise always counts as 3 sets. */
-const MYOREPS_COUNTED_SETS = 3;
-const countedSets = (method: TrainingMethod, sets: number) =>
-  method === 'MYOREPS' ? MYOREPS_COUNTED_SETS : sets;
-
-const SPLIT_NAMES: Record<number, string> = {
-  2: 'Full Body A / Full Body B',
-  3: 'Push / Pull / Legs',
-  4: 'Upper A / Lower A / Upper B / Lower B',
-  5: 'Push / Pull / Legs / Upper / Lower',
-  6: 'Push A / Pull A / Legs A / Push B / Pull B / Legs B',
-};
-
-const SUGGESTED_STEPS: SuggestedStep[] = ['level', 'goal', 'days', 'cardio', 'confirm'];
-
 // ─── Root screen: mode picker ─────────────────────────────────────────────────
 
 export default function ProgramSetupScreen() {
@@ -132,7 +105,6 @@ export default function ProgramSetupScreen() {
 
   if (edit) return <DiyBuilder editProgramId={Number(edit)} />;
   if (!mode) return <ModePicker onSelect={setMode} />;
-  if (mode === 'suggested') return <SuggestedWizard />;
   if (mode === 'standalone') return <StandaloneBuilder />;
   return <DiyBuilder />;
 }
@@ -155,25 +127,28 @@ function ModePicker({ onSelect }: { onSelect: (m: Mode) => void }) {
           color: Colors.textPrimary, marginBottom: 6 }}>How do you want to start?</Text>
         <Text style={{ fontSize: FontSize.md, color: Colors.textSecondary,
           marginBottom: Spacing.xl }}>
-          Let us build a program for you, or design every detail yourself.
+          Be walked through the decisions that shape a program, or lay one out
+          yourself.
         </Text>
 
-        <TouchableOpacity onPress={() => onSelect('suggested')}
+        <TouchableOpacity onPress={() => router.push('/program/guided')}
           style={{ borderRadius: Radius.xl, padding: Spacing.lg, marginBottom: Spacing.md,
             backgroundColor: Colors.primary, ...Shadow.float }}>
           <View style={{ width: 44, height: 44, borderRadius: 22,
             backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center',
             justifyContent: 'center', marginBottom: Spacing.md }}>
-            <Ionicons name="sparkles" size={22} color={Colors.textInverse} />
+            <Ionicons name="compass-outline" size={22} color={Colors.textInverse} />
           </View>
           <Text style={{ fontSize: FontSize.xl, fontWeight: FontWeight.bold,
-            color: Colors.textInverse }}>Suggested Program</Text>
+            color: Colors.textInverse }}>Guide me through it</Text>
           <Text style={{ fontSize: FontSize.sm, color: Colors.primaryLight, marginTop: 4 }}>
-            Answer a few questions and get a science-based program built for you.
+            Set your goal, how much volume you want and how many days you can
+            train. Each step explains what it changes, and you edit the result
+            before anything is saved.
           </Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6,
-            marginTop: Spacing.md }}>
-            {['Level', 'Goal', 'Method', 'Days', 'Done'].map((s, i) => (
+          <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap',
+            gap: 6, marginTop: Spacing.md }}>
+            {['Goal', 'Volume', 'Days', 'Split', 'Exercises'].map((s, i) => (
               <React.Fragment key={s}>
                 <View style={{ backgroundColor: 'rgba(255,255,255,0.15)',
                   borderRadius: Radius.full, paddingHorizontal: 8, paddingVertical: 3 }}>
@@ -195,9 +170,9 @@ function ModePicker({ onSelect }: { onSelect: (m: Mode) => void }) {
             <Ionicons name="construct-outline" size={22} color={Colors.primary} />
           </View>
           <Text style={{ fontSize: FontSize.xl, fontWeight: FontWeight.bold,
-            color: Colors.textPrimary }}>Build from Scratch</Text>
+            color: Colors.textPrimary }}>Build it myself</Text>
           <Text style={{ fontSize: FontSize.sm, color: Colors.textSecondary, marginTop: 4 }}>
-            Choose your own exercises, days, and structure. Full control.
+            Pick your own days, exercises and structure from an empty page.
           </Text>
         </TouchableOpacity>
 
@@ -218,210 +193,6 @@ function ModePicker({ onSelect }: { onSelect: (m: Mode) => void }) {
           </Text>
         </TouchableOpacity>
       </ScrollView>
-    </SafeAreaView>
-  );
-}
-
-// ─── Suggested wizard ─────────────────────────────────────────────────────────
-
-function SuggestedWizard() {
-  const queryClient = useQueryClient();
-  const [step, setStep] = useState<SuggestedStep>('level');
-  const [draft, setDraft] = useState<ProgramDraft>({
-    name: 'My Training Program',
-    fitnessLevel: 'INTERMEDIATE',
-    goal: 'HYPERTROPHY',
-    strengthDaysPerWeek: 4,
-    cardioDaysPerWeek: 0,
-  });
-
-  const { mutate: create, isPending } = useMutation({
-    mutationFn: () => programsApi.create(draft),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['activeProgram'] });
-      router.replace('/(tabs)/');
-    },
-    onError: (e: Error) => Alert.alert('Error', e.message),
-  });
-
-  const stepIndex = SUGGESTED_STEPS.indexOf(step);
-  const progress  = (stepIndex + 1) / SUGGESTED_STEPS.length;
-
-  const next = () => {
-    if (step === 'confirm') { create(); return; }
-    setStep(SUGGESTED_STEPS[stepIndex + 1]);
-  };
-  const back = () => {
-    if (stepIndex === 0) router.back();
-    else setStep(SUGGESTED_STEPS[stepIndex - 1]);
-  };
-
-  return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: Colors.surface }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', padding: Spacing.md,
-        borderBottomWidth: 1, borderBottomColor: Colors.border }}>
-        <TouchableOpacity onPress={back} style={{ padding: 4, marginRight: Spacing.sm }}>
-          <Ionicons name="chevron-back" size={24} color={Colors.textPrimary} />
-        </TouchableOpacity>
-        <View style={{ flex: 1 }}>
-          <Text style={{ fontSize: FontSize.md, fontWeight: FontWeight.semibold,
-            color: Colors.textPrimary }}>Suggested Program</Text>
-          <View style={{ height: 4, backgroundColor: Colors.surfaceSubtle,
-            borderRadius: 2, marginTop: 6, overflow: 'hidden' }}>
-            <View style={{ height: 4, borderRadius: 2, backgroundColor: Colors.primary,
-              width: `${progress * 100}%` }} />
-          </View>
-        </View>
-      </View>
-
-      <ScrollView contentContainerStyle={{ padding: Spacing.lg, paddingBottom: 120 }}>
-        {step === 'level' && (
-          <StepContainer title="Your fitness level"
-            subtitle="Sets weekly volume targets for each muscle group.">
-            {(['BEGINNER', 'INTERMEDIATE', 'ADVANCED'] as FitnessLevel[]).map((level) => (
-              <OptionCard key={level}
-                selected={draft.fitnessLevel === level}
-                onPress={() => setDraft((d) => ({ ...d, fitnessLevel: level }))}
-                title={level.charAt(0) + level.slice(1).toLowerCase()}
-                subtitle={VOLUME_INFO[level]} />
-            ))}
-          </StepContainer>
-        )}
-
-        {step === 'goal' && (
-          <StepContainer title="Primary goal"
-            subtitle="Shapes rep ranges, rest periods, and intensity.">
-            <OptionCard selected={draft.goal === 'HYPERTROPHY'}
-              onPress={() => setDraft((d) => ({ ...d, goal: 'HYPERTROPHY' }))}
-              title="Muscle Growth"
-              subtitle="8–12 reps · 3–4 sets · 60–90s rest"
-              icon="fitness-outline" />
-            <OptionCard selected={draft.goal === 'STRENGTH'}
-              onPress={() => setDraft((d) => ({ ...d, goal: 'STRENGTH' }))}
-              title="Strength"
-              subtitle="3–6 reps · 4–5 sets · 3–5 min rest"
-              icon="barbell-outline" />
-          </StepContainer>
-        )}
-
-        {step === 'days' && (
-          <StepContainer title="Training days per week"
-            subtitle="Strength days — each muscle group trained at least twice.">
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-              {[2, 3, 4, 5, 6].map((n) => (
-                <TouchableOpacity key={n}
-                  onPress={() => setDraft((d) => ({ ...d, strengthDaysPerWeek: n }))}
-                  style={{ flex: 1, marginHorizontal: 3, paddingVertical: 18, alignItems: 'center',
-                    borderRadius: Radius.md,
-                    backgroundColor: draft.strengthDaysPerWeek === n ? Colors.primary : Colors.surfaceMuted,
-                    borderWidth: 1,
-                    borderColor: draft.strengthDaysPerWeek === n ? Colors.primary : Colors.border }}>
-                  <Text style={{ fontSize: FontSize.xl, fontWeight: FontWeight.bold,
-                    color: draft.strengthDaysPerWeek === n ? Colors.textInverse : Colors.textPrimary }}>
-                    {n}
-                  </Text>
-                  <Text style={{ fontSize: FontSize.xs, marginTop: 2,
-                    color: draft.strengthDaysPerWeek === n ? Colors.primaryLight : Colors.textSecondary }}>
-                    {n === 1 ? 'day' : 'days'}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            <View style={{ backgroundColor: Colors.primaryTint, borderRadius: Radius.lg,
-              padding: Spacing.md, marginTop: Spacing.md }}>
-              <Text style={{ fontSize: FontSize.xs, color: Colors.primary,
-                fontWeight: FontWeight.medium, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                Split
-              </Text>
-              <Text style={{ fontSize: FontSize.md, color: Colors.primaryDark,
-                fontWeight: FontWeight.semibold, marginTop: 4 }}>
-                {SPLIT_NAMES[draft.strengthDaysPerWeek] ?? `${draft.strengthDaysPerWeek}-day split`}
-              </Text>
-            </View>
-          </StepContainer>
-        )}
-
-        {step === 'cardio' && (
-          <StepContainer title="Cardio (optional)"
-            subtitle="Cardio days won't clash with your strength schedule.">
-            <Text style={{ fontSize: FontSize.sm, color: Colors.textSecondary,
-              marginBottom: Spacing.sm }}>Days per week</Text>
-            <View style={{ flexDirection: 'row', gap: 8, marginBottom: Spacing.lg }}>
-              {[0, 1, 2, 3].map((n) => (
-                <TouchableOpacity key={n}
-                  onPress={() => setDraft((d) => ({ ...d, cardioDaysPerWeek: n }))}
-                  style={{ width: 52, height: 52, alignItems: 'center', justifyContent: 'center',
-                    borderRadius: Radius.md,
-                    backgroundColor: draft.cardioDaysPerWeek === n ? Colors.primary : Colors.surfaceMuted,
-                    borderWidth: 1, borderColor: draft.cardioDaysPerWeek === n ? Colors.primary : Colors.border }}>
-                  <Text style={{ fontWeight: FontWeight.bold,
-                    color: draft.cardioDaysPerWeek === n ? Colors.textInverse : Colors.textPrimary }}>
-                    {n}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            {draft.cardioDaysPerWeek > 0 && (
-              <>
-                <Text style={{ fontSize: FontSize.sm, color: Colors.textSecondary,
-                  marginBottom: Spacing.sm }}>Type</Text>
-                {(['LISS', 'HIIT', 'CYCLING', 'ROWING'] as CardioType[]).map((type) => (
-                  <OptionCard key={type} selected={draft.cardioType === type}
-                    onPress={() => setDraft((d) => ({ ...d, cardioType: type }))}
-                    title={type}
-                    subtitle={type === 'LISS' ? 'Steady state (20–45 min)'
-                      : type === 'HIIT' ? 'High intensity intervals (15–25 min)'
-                      : type === 'CYCLING' ? 'Stationary or outdoor bike'
-                      : 'Rowing machine'} />
-                ))}
-              </>
-            )}
-          </StepContainer>
-        )}
-
-        {step === 'confirm' && (
-          <StepContainer title="Ready to go!" subtitle="">
-            <TextInput
-              value={draft.name}
-              onChangeText={(v) => setDraft((d) => ({ ...d, name: v }))}
-              style={{ backgroundColor: Colors.surfaceMuted, borderRadius: Radius.md,
-                paddingHorizontal: Spacing.md, paddingVertical: 14,
-                fontSize: FontSize.lg, color: Colors.textPrimary,
-                borderWidth: 1, borderColor: Colors.border, marginBottom: Spacing.lg }}
-              placeholder="Program name"
-              placeholderTextColor={Colors.textMuted}
-            />
-            <SummaryRow label="Level" value={draft.fitnessLevel.charAt(0) + draft.fitnessLevel.slice(1).toLowerCase()} />
-            <SummaryRow label="Goal" value={draft.goal === 'HYPERTROPHY' ? 'Muscle Growth' : 'Strength'} />
-            <SummaryRow label="Strength" value={`${draft.strengthDaysPerWeek}× / week`} />
-            {draft.cardioDaysPerWeek > 0 && (
-              <SummaryRow label="Cardio" value={`${draft.cardioDaysPerWeek}× ${draft.cardioType ?? ''}`} />
-            )}
-            <View style={{ backgroundColor: Colors.primaryTint, borderRadius: Radius.lg,
-              padding: Spacing.md, marginTop: Spacing.lg }}>
-              <Text style={{ fontSize: FontSize.sm, color: Colors.primary,
-                fontWeight: FontWeight.medium }}>
-                ✓ A personalised schedule is generated based on your settings.
-              </Text>
-            </View>
-          </StepContainer>
-        )}
-      </ScrollView>
-
-      <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0,
-        backgroundColor: Colors.surface, padding: Spacing.lg,
-        borderTopWidth: 1, borderTopColor: Colors.border }}>
-        <TouchableOpacity onPress={next} disabled={isPending}
-          style={{ backgroundColor: Colors.primary, borderRadius: Radius.md,
-            paddingVertical: 16, alignItems: 'center', opacity: isPending ? 0.7 : 1 }}>
-          {isPending
-            ? <ActivityIndicator color={Colors.textInverse} />
-            : <Text style={{ color: Colors.textInverse, fontWeight: FontWeight.semibold,
-                fontSize: FontSize.md }}>
-                {step === 'confirm' ? 'Build Program →' : 'Continue'}
-              </Text>}
-        </TouchableOpacity>
-      </View>
     </SafeAreaView>
   );
 }
@@ -644,17 +415,16 @@ function DiyBuilder({ editProgramId }: { editProgramId?: number }) {
     e.name.toLowerCase().includes(exSearch.toLowerCase())
   );
 
-  // Compute weekly sets per muscle across all days.
-  // Myo-reps exercises count as a fixed 3 sets (clusters are short).
-  const currentVolume: Record<string, number> = {};
-  for (const day of days) {
-    for (const de of day.exercises) {
-      for (const m of de.exercise.muscles.filter((mu) => mu.role === 'PRIMARY')) {
-        currentVolume[m.muscleGroupName] =
-          (currentVolume[m.muscleGroupName] ?? 0) + countedSets(de.method, de.sets);
-      }
-    }
-  }
+  // Weekly sets per muscle across all days, on the same rules the guided
+  // builder and the backend allocator use: a primary muscle banks the full
+  // set, a secondary banks half, and a myo-reps exercise counts as 3.
+  const currentVolume = weeklyVolume(
+    days.flatMap((day) => day.exercises.map((de) => ({
+      muscles: de.exercise.muscles,
+      method: de.method,
+      sets: de.sets,
+    })))
+  );
 
   const editingDay = editingDayIdx !== null
     ? days.find((d) => d.dayIndex === editingDayIdx) : null;
@@ -1033,7 +803,7 @@ function DiyBuilder({ editProgramId }: { editProgramId?: number }) {
 
 function VolumeGuide({ fitnessLevel, currentVolume, open, onToggle }: {
   fitnessLevel: FitnessLevel;
-  currentVolume: Record<string, number>;
+  currentVolume: Record<string, MuscleVolume>;
   open: boolean;
   onToggle: () => void;
 }) {
@@ -1072,18 +842,24 @@ function VolumeGuide({ fitnessLevel, currentVolume, open, onToggle }: {
             const parts = ROLLUP_PARTS[muscle];
             // Include exercises tagged with the aggregate group itself
             const partValues = parts
-              ? [...parts.map((p) => currentVolume[p] ?? 0), currentVolume[muscle] ?? 0]
+              ? [...parts.map((p) => currentVolume[p] ?? EMPTY_VOLUME),
+                 currentVolume[muscle] ?? EMPTY_VOLUME]
               : [];
-            const current = parts
-              ? (AGGREGATE_DISPLAY[muscle] === 'max'
-                  ? Math.max(...partValues)
-                  : partValues.reduce((a, b) => a + b, 0))
-              : currentVolume[muscle] ?? 0;
+            const pick = (field: 'direct' | 'total') => AGGREGATE_DISPLAY[muscle] === 'max'
+              ? Math.max(...partValues.map((v) => v[field]))
+              : partValues.reduce((a, v) => a + v[field], 0);
+            const current: MuscleVolume = parts
+              ? { direct: pick('direct'), total: pick('total') }
+              : currentVolume[muscle] ?? EMPTY_VOLUME;
             const isOpen   = !!expandedGroups[muscle];
-            const inRange  = current >= min && current <= max;
-            const over     = current > max;
+            // Judged on DIRECT sets: these target ranges are direct-set advice,
+            // and counting indirect work against them reads every pressing
+            // program as over-training its front delts.
+            const inRange  = current.direct >= min && current.direct <= max;
+            const over     = current.direct > max;
             const barColor = over ? Colors.warning : inRange ? Colors.success : Colors.primary;
-            const fillPct  = Math.min(current / max, 1.2); // allow slight overflow visually
+            const fillPct  = Math.min(current.direct / max, 1.2); // allow slight overflow visually
+            const totalPct = Math.min(current.total / max, 1.2);
 
             return (
               <View key={muscle} style={{ marginBottom: 10 }}>
@@ -1101,11 +877,11 @@ function VolumeGuide({ fitnessLevel, currentVolume, open, onToggle }: {
                     )}
                   </View>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    {current > 0 && (
+                    {current.total > 0 && (
                       <Text style={{ fontSize: 10,
                         color: over ? Colors.warning : inRange ? Colors.success : Colors.textMuted,
                         fontWeight: FontWeight.semibold }}>
-                        {current} sets
+                        {describeVolume(current)}
                       </Text>
                     )}
                     <Text style={{ fontSize: 10, color: Colors.textMuted }}>
@@ -1122,8 +898,16 @@ function VolumeGuide({ fitnessLevel, currentVolume, open, onToggle }: {
                     right: 0, top: 0, bottom: 0,
                     backgroundColor: Colors.successTint, borderRadius: 3,
                   }} />
-                  {/* Current fill */}
-                  {current > 0 && (
+                  {/* Total including indirect work, ghosted behind the direct bar */}
+                  {current.total > current.direct && (
+                    <View style={{
+                      position: 'absolute', left: 0, top: 0, bottom: 0,
+                      width: `${Math.min(totalPct * 100, 100)}%`,
+                      backgroundColor: Colors.primaryLight, opacity: 0.45, borderRadius: 3,
+                    }} />
+                  )}
+                  {/* Direct sets — what the target range is measured against */}
+                  {current.direct > 0 && (
                     <View style={{
                       height: 6, width: `${Math.min(fillPct * 100, 100)}%`,
                       backgroundColor: barColor, borderRadius: 3,
@@ -1139,9 +923,9 @@ function VolumeGuide({ fitnessLevel, currentVolume, open, onToggle }: {
                         justifyContent: 'space-between', paddingVertical: 2 }}>
                         <Text style={{ fontSize: 10, color: Colors.textSecondary }}>{p}</Text>
                         <Text style={{ fontSize: 10, fontWeight: FontWeight.semibold,
-                          color: (currentVolume[p] ?? 0) > 0
+                          color: (currentVolume[p]?.total ?? 0) > 0
                             ? Colors.textPrimary : Colors.textMuted }}>
-                          {currentVolume[p] ?? 0} sets
+                          {describeVolume(currentVolume[p] ?? EMPTY_VOLUME)}
                         </Text>
                       </View>
                     ))}
@@ -1152,9 +936,12 @@ function VolumeGuide({ fitnessLevel, currentVolume, open, onToggle }: {
           })}
           <Text style={{ fontSize: 10, color: Colors.textMuted, marginTop: 4 }}>
             Green = in range · Blue = building up · Yellow = above max{'\n'}
-            Shoulders, Back and Abs group several muscles — tap them for the breakdown.
-            Shoulders and Back show their most-trained muscle; Abs sums.
-            Myo-reps exercises count as 3 sets.
+            Bars and colours track DIRECT sets — the ones these ranges are written
+            for. The pale bar behind adds indirect work: a muscle worked as a
+            secondary counts half a set, so a bench press also feeds your triceps
+            and front delts. Myo-reps count as 3 sets.{'\n'}
+            Shoulders, Back and Abs group several muscles — tap them for the
+            breakdown. Shoulders and Back show their most-trained muscle; Abs sums.
           </Text>
         </View>
       )}

@@ -33,7 +33,9 @@ export default function OnboardScreen() {
     setIsLoading(true);
     try {
       await register({ email, password, name, fitnessLevel });
-      router.replace('/program/setup');
+      // Straight into the guided builder, carrying the goal just chosen so it
+      // is not asked for twice.
+      router.replace({ pathname: '/program/guided', params: { goal } });
     } catch (e: any) {
       Alert.alert('Error', e.message);
     } finally {

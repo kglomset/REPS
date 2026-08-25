@@ -29,6 +29,7 @@ export default function RootLayout() {
             <Stack.Screen name="workout/start" options={{ presentation: 'modal' }} />
             <Stack.Screen name="workout/view" />
             <Stack.Screen name="program/setup" />
+            <Stack.Screen name="program/guided" />
             <Stack.Screen name="settings" />
           </Stack>
         </SafeAreaProvider>

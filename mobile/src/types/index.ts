@@ -3,6 +3,10 @@ export type FitnessLevel = 'BEGINNER' | 'INTERMEDIATE' | 'ADVANCED';
 export type TrainingGoal = 'HYPERTROPHY' | 'STRENGTH';
 export type TrainingMethod = 'STRAIGHT_SETS' | 'MYOREPS' | 'SUPERSET' | 'TRISET' | 'DROP_SET';
 export type MuscleRole = 'PRIMARY' | 'SECONDARY';
+// Multi-joint vs single-joint. Curated per exercise server-side — it cannot be
+// inferred from the muscle mapping (Bench Press has one primary muscle, same
+// as Lateral Raise). Drives rep ranges and myo-rep eligibility.
+export type MovementPattern = 'COMPOUND' | 'ISOLATION';
 export type CardioType = 'LISS' | 'HIIT' | 'CYCLING' | 'ROWING' | 'SWIMMING' | 'OTHER';
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
@@ -35,6 +39,7 @@ export interface ExerciseResponse {
   cues?: string;
   imageUrl?: string;
   muscles: ExerciseMuscleResponse[];
+  movementPattern?: MovementPattern;
 }
 
 // ─── Programs ─────────────────────────────────────────────────────────────────
@@ -64,6 +69,8 @@ export interface ProgramResponse {
   goal: TrainingGoal;
   strengthDaysPerWeek: number;
   cardioDaysPerWeek: number;
+  /** Weekly set target per muscle group this program was built around. */
+  weeklySetsPerMuscle?: number;
   cardioType?: CardioType;
   active: boolean;
   createdAt: string;
@@ -79,6 +86,62 @@ export interface ExerciseSetResponse {
   rpe?: number;
   restSeconds?: number;
   completedAt: string;
+}
+
+// ─── Guided program builder ───────────────────────────────────────────────────
+
+export interface SplitOptionResponse {
+  id: string;
+  /** e.g. "Upper / Lower ×2" */
+  name: string;
+  /** Day labels in order, e.g. [Upper, Lower, Upper, Lower]. */
+  dayNames: string[];
+  /** How often the least-trained muscle is hit per week; 2+ is what to aim for. */
+  minWeeklyFrequency: number;
+}
+
+export interface DraftExercise {
+  exerciseId: number;
+  name: string;
+  movementPattern: MovementPattern;
+  sets: number;
+  repsMin: number;
+  repsMax: number;
+  restSeconds: number;
+  trainingMethod: TrainingMethod;
+}
+
+export interface DraftDay {
+  name: string;
+  dayIndex: number;
+  dayType: string;
+  estimatedMinutes: number;
+  exercises: DraftExercise[];
+}
+
+export interface DraftMuscleVolume {
+  muscleGroupId: number;
+  name: string;
+  slug: string;
+  targetSets: number;
+  /** Myo-reps count as 3 sets, secondary muscles as half a set. */
+  plannedSets: number;
+}
+
+export interface ProgramDraftResponse {
+  splitId: string;
+  splitName: string;
+  days: DraftDay[];
+  weeklyVolume: DraftMuscleVolume[];
+  longestSessionMinutes: number;
+}
+
+export interface ProgramDraftRequest {
+  goal: TrainingGoal;
+  weeklySetsPerMuscle: number;
+  daysPerWeek: number;
+  splitId?: string;
+  recommendMyoreps: boolean;
 }
 
 // ─── Progression suggestions ──────────────────────────────────────────────────
