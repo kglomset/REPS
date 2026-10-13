@@ -24,4 +24,9 @@ public class SplitOptionResponse {
      * ordered so those come first.
      */
     private int minWeeklyFrequency;
+    /**
+     * Suggested weekdays (0 = Monday), one per training day. Rest days fall
+     * where they should for this split; the user can move them.
+     */
+    private List<Integer> recommendedDayIndices;
 }

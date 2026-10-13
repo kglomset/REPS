@@ -56,6 +56,11 @@ export const programsApi = {
   create: (data: CreateProgramPayload) =>
     client.post<ProgramResponse>(ENDPOINTS.programs.create, data).then((r) => r.data),
 
+  // Deleting keeps any sessions already logged against the program — they are
+  // detached server-side, so history and progression survive.
+  remove: (id: number) =>
+    client.delete(`/programs/${id}`).then((r) => r.data),
+
   activate: (id: number) =>
     client.post<ProgramResponse>(`/programs/${id}/activate`, {}).then((r) => r.data),
 

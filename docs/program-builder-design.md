@@ -96,6 +96,36 @@ Day types and the muscle groups they own:
 Traps, lower back, obliques and forearms are not volume targets — they accrue
 work incidentally as secondary muscles.
 
+### 2.4b Which weekdays
+
+The split step also picks the days. It arrives pre-filled with a layout derived
+from the split itself, and every day can be moved.
+
+Two rules, both about recovery:
+
+- **A split that runs its cycle more than once gets a rest day between each
+  completion.** Push/Pull/Legs twice over is Mon–Wed, rest, Fri–Sun — not six
+  days straight.
+- **When every session is the same workout (full body), they are never back to
+  back.** Four full-body days become Mon/Wed/Fri/Sun.
+
+A single pass through a split falls back to an even spread (3 days → Mon/Wed/Fri).
+Both rules fall out of one calculation: find the repeating unit with
+`cycleLength`, and if it repeats, lay the blocks out with a rest between them —
+full body is just the case where the cycle is one day long.
+
+| Split | Layout |
+|---|---|
+| Full body ×4 | Mon · Wed · Fri · Sun |
+| Upper / Lower ×2 | Mon Tue · rest · Thu Fri |
+| Push / Pull / Legs ×2 | Mon Tue Wed · rest · Fri Sat Sun |
+| Push / Pull / Legs (once) | Mon · Wed · Fri |
+
+The client sends its chosen `dayIndices` with the draft request. They are used
+only when there is exactly one entry per training day, all inside the week and
+none repeated — a malformed list falls back to the recommendation rather than
+silently producing two workouts on the same day.
+
 ### 2.5 Myo-reps
 
 A single checkbox: *"Suggest myo-reps where they save time"*. The page explains
@@ -236,6 +266,7 @@ sentence they have to take on faith.
 | `GET /programs/splits?daysPerWeek=N` | Split options for a frequency, ranked, each with its day names and minimum per-muscle weekly frequency. |
 | `POST /programs/draft` | `{goal, weeklySetsPerMuscle, daysPerWeek, splitId, recommendMyoreps}` → an **unsaved** program structure: days, exercises with sets/reps/rest/method, per-muscle planned-vs-target volume, estimated session minutes. |
 | `POST /programs` | Unchanged shape, but `Ex` now carries optional `repsMin`, `repsMax`, `restSeconds` (previously the goal range overwrote whatever the client sent), the request carries `weeklySetsPerMuscle`, and `strengthDaysPerWeek` accepts 1. |
+| `DELETE /programs/{id}` | Removes a program and its templates. Completed sessions are **detached, not deleted** — the workout happened, and history and progression outlive the program that prescribed it. Same pattern as `deleteStandalone`. |
 
 Generation lives on the backend so the rules are testable in one place and the
 client stays a renderer.

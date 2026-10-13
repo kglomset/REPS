@@ -129,14 +129,74 @@ public class ProgramBuilderService {
                             SplitDayType.CHEST_BACK, SplitDayType.SHOULDERS_ARMS, SplitDayType.LEGS,
                             SplitDayType.CHEST_BACK, SplitDayType.SHOULDERS_ARMS, SplitDayType.LEGS))));
 
-    /** Which weekdays a program of N days lands on (0 = Monday). */
-    private static final Map<Integer, List<Integer>> DAY_INDICES = Map.of(
+    /**
+     * Fallback weekdays for a split that runs through once (0 = Monday), spread
+     * so the week does not end in a block of consecutive sessions.
+     */
+    private static final Map<Integer, List<Integer>> SINGLE_PASS_DAYS = Map.of(
             1, List.of(0),
             2, List.of(0, 3),
             3, List.of(0, 2, 4),
             4, List.of(0, 1, 3, 4),
             5, List.of(0, 1, 2, 4, 5),
-            6, List.of(0, 1, 2, 3, 4, 5));
+            6, List.of(0, 1, 2, 4, 5, 6));
+
+    static final int DAYS_IN_WEEK = 7;
+
+    /**
+     * Where a split's sessions land in the week by default.
+     *
+     * Two rules, both about recovery:
+     * <ul>
+     *   <li>A split that runs its cycle more than once gets a **rest day between
+     *       each completion** — Push/Pull/Legs twice over is Mon–Wed, rest, Fri–Sun,
+     *       not six days straight.</li>
+     *   <li>When every session is the same workout (full body), they are never
+     *       back to back — four full-body days become Mon/Wed/Fri/Sun.</li>
+     * </ul>
+     *
+     * A single pass through a split falls back to an even spread. The user can
+     * move any of it afterwards; this is only the starting point.
+     */
+    static List<Integer> defaultDayIndices(List<SplitDayType> dayTypes) {
+        int days = dayTypes.size();
+        int cycle = cycleLength(dayTypes);
+        int repeats = days / cycle;
+
+        if (repeats >= 2) {
+            if (cycle == 1) {
+                // Same session every time — spread it out, minimum every other day.
+                int step = Math.max(2, DAYS_IN_WEEK / days);
+                List<Integer> spread = new ArrayList<>();
+                for (int i = 0; i < days; i++) spread.add(i * step);
+                if (spread.get(spread.size() - 1) < DAYS_IN_WEEK) return List.copyOf(spread);
+            } else if (days + (repeats - 1) <= DAYS_IN_WEEK) {
+                // Cycle blocks back to back, one rest day between them.
+                List<Integer> blocked = new ArrayList<>();
+                int day = 0;
+                for (int r = 0; r < repeats; r++) {
+                    for (int i = 0; i < cycle; i++) blocked.add(day++);
+                    day++; // the rest day
+                }
+                return List.copyOf(blocked);
+            }
+        }
+        return SINGLE_PASS_DAYS.get(days);
+    }
+
+    /** Length of the repeating unit — 2 for Upper/Lower/Upper/Lower, 1 for all-same. */
+    static int cycleLength(List<SplitDayType> dayTypes) {
+        int days = dayTypes.size();
+        for (int c = 1; c <= days; c++) {
+            if (days % c != 0) continue;
+            boolean repeats = true;
+            for (int i = 0; i < days && repeats; i++) {
+                repeats = dayTypes.get(i) == dayTypes.get(i % c);
+            }
+            if (repeats) return c;
+        }
+        return days;
+    }
 
     /**
      * Splits available for a given number of training days, best first.
@@ -152,6 +212,7 @@ public class ProgramBuilderService {
                         .name(s.name())
                         .dayNames(s.dayTypes().stream().map(SplitDayType::getLabel).toList())
                         .minWeeklyFrequency(minWeeklyFrequency(s.dayTypes()))
+                        .recommendedDayIndices(defaultDayIndices(s.dayTypes()))
                         .build())
                 .toList();
     }
@@ -200,7 +261,7 @@ public class ProgramBuilderService {
 
         List<Exercise> library = exerciseRepo.findAllAvailableForUser(userId);
         Map<String, Integer> frequency = weeklyFrequency(split.dayTypes());
-        List<Integer> dayIndices = DAY_INDICES.get(req.getDaysPerWeek());
+        List<Integer> dayIndices = resolveDayIndices(req.getDayIndices(), split.dayTypes());
 
         int setsPerExercise = setsPerExercise(req.getGoal());
         Set<Long> usedInProgram = new HashSet<>();
@@ -346,6 +407,23 @@ public class ProgramBuilderService {
                     .build());
         }
         return picked;
+    }
+
+    /**
+     * The user's chosen weekdays when they are usable, otherwise the split's
+     * recommended layout. "Usable" means one entry per training day, all inside
+     * the week and none repeated — a malformed list should not silently produce
+     * a program with two workouts on the same day.
+     */
+    private static List<Integer> resolveDayIndices(List<Integer> requested,
+                                                   List<SplitDayType> dayTypes) {
+        if (requested != null
+                && requested.size() == dayTypes.size()
+                && requested.stream().allMatch(d -> d != null && d >= 0 && d < DAYS_IN_WEEK)
+                && Set.copyOf(requested).size() == requested.size()) {
+            return requested.stream().sorted().toList();
+        }
+        return defaultDayIndices(dayTypes);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────

@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -76,6 +77,73 @@ class ProgramBuilderServiceTest {
         @Test
         void unknownFrequencyIsRejected() {
             assertThrows(RuntimeException.class, () -> service.splitsFor(7));
+        }
+    }
+
+    // ── Default weekday layout ────────────────────────────────────────────
+
+    @Nested
+    @DisplayName("day layout — rest days land where recovery wants them")
+    class DayLayout {
+
+        @Test
+        void fullBodySessionsAreNeverBackToBack() {
+            for (int days = 1; days <= 4; days++) {
+                List<SplitDayType> allFullBody = java.util.Collections.nCopies(
+                        days, SplitDayType.FULL_BODY);
+                List<Integer> layout = ProgramBuilderService.defaultDayIndices(allFullBody);
+                for (int i = 1; i < layout.size(); i++) {
+                    assertTrue(layout.get(i) - layout.get(i - 1) >= 2,
+                            days + " full-body days landed on consecutive weekdays: " + layout);
+                }
+            }
+        }
+
+        @Test
+        void fourFullBodyDaysSpreadAcrossTheWholeWeek() {
+            assertEquals(List.of(0, 2, 4, 6), ProgramBuilderService.defaultDayIndices(
+                    java.util.Collections.nCopies(4, SplitDayType.FULL_BODY)));
+        }
+
+        @Test
+        void aRepeatedCycleGetsARestDayBetweenRounds() {
+            // Upper / Lower twice: Mon, Tue — rest — Thu, Fri
+            assertEquals(List.of(0, 1, 3, 4), ProgramBuilderService.defaultDayIndices(List.of(
+                    SplitDayType.UPPER, SplitDayType.LOWER,
+                    SplitDayType.UPPER, SplitDayType.LOWER)));
+
+            // Push / Pull / Legs twice: Mon–Wed — rest — Fri–Sun
+            assertEquals(List.of(0, 1, 2, 4, 5, 6), ProgramBuilderService.defaultDayIndices(List.of(
+                    SplitDayType.PUSH, SplitDayType.PULL, SplitDayType.LEGS,
+                    SplitDayType.PUSH, SplitDayType.PULL, SplitDayType.LEGS)));
+        }
+
+        @Test
+        void cycleLengthFindsTheRepeatingUnit() {
+            assertEquals(1, ProgramBuilderService.cycleLength(
+                    java.util.Collections.nCopies(3, SplitDayType.FULL_BODY)));
+            assertEquals(2, ProgramBuilderService.cycleLength(List.of(
+                    SplitDayType.UPPER, SplitDayType.LOWER,
+                    SplitDayType.UPPER, SplitDayType.LOWER)));
+            // A single pass never repeats, so the whole thing is the cycle
+            assertEquals(3, ProgramBuilderService.cycleLength(List.of(
+                    SplitDayType.PUSH, SplitDayType.PULL, SplitDayType.LEGS)));
+        }
+
+        @Test
+        void everySplitGetsOneDistinctWeekdayPerSession() {
+            for (int days = 1; days <= 6; days++) {
+                for (SplitOptionResponse option : service.splitsFor(days)) {
+                    List<Integer> layout = option.getRecommendedDayIndices();
+                    assertEquals(days, layout.size(), option.getName());
+                    assertEquals(days, Set.copyOf(layout).size(),
+                            option.getName() + " repeats a weekday: " + layout);
+                    assertTrue(layout.stream().allMatch(d -> d >= 0 && d <= 6),
+                            option.getName() + " falls outside the week: " + layout);
+                    assertEquals(layout.stream().sorted().toList(), layout,
+                            option.getName() + " is not in weekday order: " + layout);
+                }
+            }
         }
     }
 

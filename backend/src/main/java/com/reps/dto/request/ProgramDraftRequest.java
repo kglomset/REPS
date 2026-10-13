@@ -6,6 +6,8 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
+import java.util.List;
+
 /** Everything the guided builder collects before it can propose a program. */
 @Data
 public class ProgramDraftRequest {
@@ -25,4 +27,11 @@ public class ProgramDraftRequest {
 
     /** Propose myo-reps on accessory work to keep sessions shorter. */
     private boolean recommendMyoreps;
+
+    /**
+     * Weekdays to train on (0 = Monday), one per training day. Ignored unless
+     * it has exactly daysPerWeek distinct entries in range; the split's
+     * recommended layout is used otherwise.
+     */
+    private List<Integer> dayIndices;
 }

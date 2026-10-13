@@ -98,6 +98,11 @@ export interface SplitOptionResponse {
   dayNames: string[];
   /** How often the least-trained muscle is hit per week; 2+ is what to aim for. */
   minWeeklyFrequency: number;
+  /**
+   * Suggested weekdays (0 = Monday), one per training day, with rest days where
+   * this split wants them. The user can move them.
+   */
+  recommendedDayIndices: number[];
 }
 
 export interface DraftExercise {
@@ -142,6 +147,8 @@ export interface ProgramDraftRequest {
   daysPerWeek: number;
   splitId?: string;
   recommendMyoreps: boolean;
+  /** Weekdays to train on (0 = Monday); falls back to the split recommendation. */
+  dayIndices?: number[];
 }
 
 // ─── Progression suggestions ──────────────────────────────────────────────────

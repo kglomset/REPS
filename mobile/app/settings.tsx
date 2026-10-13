@@ -42,6 +42,7 @@ export default function SettingsScreen() {
 
   // ── Program rename modal ────────────────────────────────────────────────
   const [renameProgramModal, setRenameProgramModal] = useState<ProgramResponse | null>(null);
+  const [deleteProgramModal, setDeleteProgramModal] = useState<ProgramResponse | null>(null);
   const [renameProgramInput, setRenameProgramInput] = useState('');
 
   // ── Template rename modal ───────────────────────────────────────────────
@@ -68,6 +69,17 @@ export default function SettingsScreen() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['activeProgram'] });
       queryClient.invalidateQueries({ queryKey: ['programs'] });
+    },
+    onError: (e: Error) => Alert.alert('Error', e.message),
+  });
+
+  const { mutate: deleteProgram, isPending: isDeleting } = useMutation({
+    mutationFn: (id: number) => programsApi.remove(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['activeProgram'] });
+      queryClient.invalidateQueries({ queryKey: ['programs'] });
+      queryClient.invalidateQueries({ queryKey: ['sessions'] });
+      setDeleteProgramModal(null);
     },
     onError: (e: Error) => Alert.alert('Error', e.message),
   });
@@ -459,6 +471,13 @@ export default function SettingsScreen() {
                           fontWeight: FontWeight.semibold }}>Active</Text>
                       )}
                     </View>
+
+                    <TouchableOpacity
+                      onPress={() => setDeleteProgramModal(p)}
+                      style={{ paddingLeft: Spacing.md, paddingVertical: 4 }}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                      <Ionicons name="trash-outline" size={18} color={Colors.textMuted} />
+                    </TouchableOpacity>
                   </View>
                 </View>
               ))}
@@ -477,6 +496,46 @@ export default function SettingsScreen() {
             onPress={handleLogout} destructive />
         </View>
       </ScrollView>
+
+      {/* ── Delete Program Modal ────────────────────────────────────── */}
+      <Modal visible={!!deleteProgramModal} transparent animationType="fade">
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)',
+          justifyContent: 'center', alignItems: 'center', padding: Spacing.lg }}>
+          <View style={{ backgroundColor: Colors.surface, borderRadius: Radius.xl,
+            padding: Spacing.lg, width: '100%', maxWidth: 340, ...Shadow.float }}>
+            <Text style={{ fontSize: FontSize.lg, fontWeight: FontWeight.bold,
+              color: Colors.textPrimary, marginBottom: Spacing.xs }}>
+              Delete program?
+            </Text>
+            <Text style={{ fontSize: FontSize.sm, color: Colors.textSecondary,
+              lineHeight: 20, marginBottom: Spacing.lg }}>
+              {deleteProgramModal?.name} and its workout days will be removed.
+              Workouts you have already logged are kept — your history and
+              progression stay intact.
+            </Text>
+            {deleteProgramModal?.active && (
+              <Text style={{ fontSize: FontSize.sm, color: Colors.warning,
+                lineHeight: 20, marginTop: -Spacing.md, marginBottom: Spacing.lg }}>
+                This is your active program — you will have none until you activate
+                another.
+              </Text>
+            )}
+            <TouchableOpacity
+              onPress={() => deleteProgramModal && deleteProgram(deleteProgramModal.id)}
+              disabled={isDeleting}
+              style={{ backgroundColor: Colors.error, borderRadius: Radius.md,
+                paddingVertical: 14, alignItems: 'center', marginBottom: Spacing.sm,
+                opacity: isDeleting ? 0.7 : 1 }}>
+              <Text style={{ color: Colors.textInverse, fontWeight: FontWeight.semibold,
+                fontSize: FontSize.md }}>Delete Program</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setDeleteProgramModal(null)}
+              style={{ alignItems: 'center', paddingVertical: 10 }}>
+              <Text style={{ color: Colors.textSecondary, fontSize: FontSize.sm }}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       {/* ── Rename Program Modal ────────────────────────────────────── */}
       <Modal visible={!!renameProgramModal} transparent animationType="fade">

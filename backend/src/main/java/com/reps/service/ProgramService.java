@@ -111,6 +111,27 @@ public class ProgramService {
         program.setWorkoutTemplates(templates);
     }
 
+    /**
+     * Delete a program and its templates. Completed sessions are detached first
+     * rather than deleted with it — the workout you did last month happened, and
+     * your history and progression data should survive tidying up the program
+     * list. Same pattern as deleteStandalone.
+     */
+    @Transactional
+    public void deleteProgram(Long userId, Long programId) {
+        TrainingProgram program = programRepo.findById(programId)
+                .filter(p -> p.getUser().getId().equals(userId))
+                .orElseThrow(() -> new NoSuchElementException("Program not found"));
+
+        for (WorkoutTemplate template : program.getWorkoutTemplates()) {
+            for (WorkoutSession session : sessionRepo.findByTemplateId(template.getId())) {
+                session.setTemplate(null);
+                sessionRepo.save(session);
+            }
+        }
+        programRepo.delete(program);
+    }
+
     public List<ProgramResponse> getUserPrograms(Long userId) {
         return programRepo.findByUserId(userId).stream()
                 .map(this::toResponseSummary)

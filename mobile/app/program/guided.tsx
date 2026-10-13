@@ -11,7 +11,7 @@ import { exercisesApi } from '@/services/api/exercises';
 import {
   TrainingGoal, TrainingMethod, FitnessLevel, ExerciseResponse,
   ExerciseMuscleResponse, SplitOptionResponse, ProgramDraftResponse,
-  DraftDay, DraftExercise,
+  DraftDay, DraftExercise, ProgramResponse,
 } from '@/types';
 import { VolumeSlider, VolumeBand } from '@/components/VolumeSlider';
 import { weeklyVolume, formatSets, MuscleVolume } from '@/utils/volume';
@@ -92,6 +92,8 @@ export default function GuidedProgramScreen() {
   const [weeklySets, setWeeklySets] = useState(12);
   const [daysPerWeek, setDaysPerWeek] = useState(4);
   const [splitId, setSplitId] = useState<string | null>(null);
+  // Null = follow the split's recommended layout; set once the user moves a day.
+  const [dayIndices, setDayIndices] = useState<number[] | null>(null);
   const [recommendMyoreps, setRecommendMyoreps] = useState(false);
   const [name, setName] = useState('My Training Program');
 
@@ -107,13 +109,40 @@ export default function GuidedProgramScreen() {
     queryFn: () => programsApi.getSplits(daysPerWeek),
   });
 
-  // Changing the frequency invalidates whatever split was chosen for the old one.
-  useEffect(() => { setSplitId(null); }, [daysPerWeek]);
+  // Shares the ['activeProgram'] cache key with the Workouts tab. Used only to
+  // warn on the final step — creating a program deactivates whichever one is
+  // currently active, and that is easy to miss if nothing says so.
+  const { data: activeProgram } = useQuery<ProgramResponse | null>({
+    queryKey: ['activeProgram'],
+    queryFn: programsApi.getActive,
+  });
+
+  // Changing the frequency invalidates whatever split was chosen for the old one,
+  // and with it any hand-picked weekdays.
+  useEffect(() => { setSplitId(null); setDayIndices(null); }, [daysPerWeek]);
 
   const chosenSplit: SplitOptionResponse | undefined = useMemo(
     () => (splits ?? []).find((s) => s.id === splitId) ?? (splits ?? [])[0],
     [splits, splitId]
   );
+
+  // What the day picker shows: the user's choice, or the split's recommendation.
+  const activeDays = dayIndices ?? chosenSplit?.recommendedDayIndices ?? [];
+
+  const toggleDay = (day: number) => {
+    const current = [...activeDays];
+    const at = current.indexOf(day);
+    if (at >= 0) {
+      // Keep exactly one day per session — dropping one below the count would
+      // leave a workout with nowhere to go.
+      if (current.length <= 1) return;
+      current.splice(at, 1);
+    } else {
+      if (current.length >= daysPerWeek) current.shift(); // oldest pick makes way
+      current.push(day);
+    }
+    setDayIndices([...current].sort((a, b) => a - b));
+  };
 
   const generate = async () => {
     setDrafting(true);
@@ -122,6 +151,7 @@ export default function GuidedProgramScreen() {
       const result = await programsApi.draft({
         goal, weeklySetsPerMuscle: weeklySets, daysPerWeek,
         splitId: chosenSplit?.id, recommendMyoreps,
+        dayIndices: activeDays.length === daysPerWeek ? activeDays : undefined,
       });
       setDraft(result);
     } catch (e: any) {
@@ -266,7 +296,13 @@ export default function GuidedProgramScreen() {
           <SplitStep
             splits={splits ?? []}
             selectedId={chosenSplit?.id ?? null}
-            onSelect={setSplitId}
+            onSelect={(id) => { setSplitId(id); setDayIndices(null); }}
+            dayNames={chosenSplit?.dayNames ?? []}
+            activeDays={activeDays}
+            daysPerWeek={daysPerWeek}
+            onToggleDay={toggleDay}
+            customised={dayIndices !== null}
+            onResetDays={() => setDayIndices(null)}
           />
         )}
 
@@ -297,6 +333,7 @@ export default function GuidedProgramScreen() {
             splitName={draft?.splitName ?? chosenSplit?.name ?? ''}
             longestSessionMinutes={draft?.longestSessionMinutes ?? 0}
             error={draftError}
+            activeProgramName={activeProgram?.name ?? null}
           />
         )}
       </ScrollView>
@@ -444,10 +481,17 @@ function FrequencyStep({ value, onChange, weeklySets }: {
 
 // ─── Step 4: split ────────────────────────────────────────────────────────────
 
-function SplitStep({ splits, selectedId, onSelect }: {
+function SplitStep({ splits, selectedId, onSelect, dayNames, activeDays,
+  daysPerWeek, onToggleDay, customised, onResetDays }: {
   splits: SplitOptionResponse[];
   selectedId: string | null;
   onSelect: (id: string) => void;
+  dayNames: string[];
+  activeDays: number[];
+  daysPerWeek: number;
+  onToggleDay: (day: number) => void;
+  customised: boolean;
+  onResetDays: () => void;
 }) {
   return (
     <View>
@@ -481,7 +525,7 @@ function SplitStep({ splits, selectedId, onSelect }: {
                 <View key={`${d}-${i}`} style={{ backgroundColor: Colors.surfaceMuted,
                   borderRadius: Radius.sm, paddingHorizontal: 8, paddingVertical: 3 }}>
                   <Text style={{ fontSize: FontSize.xs, color: Colors.textSecondary }}>
-                    {DAY_NAMES[i] ?? ''} · {d}
+                    {DAY_NAMES[(active ? activeDays : s.recommendedDayIndices)[i]] ?? ''} · {d}
                   </Text>
                 </View>
               ))}
@@ -491,6 +535,49 @@ function SplitStep({ splits, selectedId, onSelect }: {
       })}
       {splits.length === 0 && (
         <ActivityIndicator color={Colors.primary} style={{ marginTop: Spacing.lg }} />
+      )}
+
+      {/* Which weekdays — pre-filled with the split's own recommendation */}
+      {selectedId && (
+        <View style={{ marginTop: Spacing.lg }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center',
+            justifyContent: 'space-between', marginBottom: 6 }}>
+            <Text style={{ fontSize: FontSize.md, fontWeight: FontWeight.semibold,
+              color: Colors.textPrimary }}>Which days?</Text>
+            {customised && (
+              <TouchableOpacity onPress={onResetDays} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Text style={{ fontSize: FontSize.xs, color: Colors.primary,
+                  fontWeight: FontWeight.medium }}>Reset to recommended</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+          <Text style={{ fontSize: FontSize.sm, color: Colors.textSecondary,
+            lineHeight: 19, marginBottom: Spacing.sm }}>
+            The rest days are already placed where this split wants them. Tap to
+            move a session — picking a new day when all {daysPerWeek} are taken
+            frees up the earliest one.
+          </Text>
+          <View style={{ flexDirection: 'row', gap: 5 }}>
+            {DAY_NAMES.map((label, day) => {
+              const position = activeDays.indexOf(day);
+              const on = position >= 0;
+              return (
+                <TouchableOpacity key={label} onPress={() => onToggleDay(day)}
+                  style={{ flex: 1, borderRadius: Radius.md, paddingVertical: 8,
+                    alignItems: 'center',
+                    backgroundColor: on ? Colors.primary : Colors.surface,
+                    borderWidth: 1, borderColor: on ? Colors.primary : Colors.border }}>
+                  <Text style={{ fontSize: FontSize.xs, fontWeight: FontWeight.semibold,
+                    color: on ? Colors.textInverse : Colors.textSecondary }}>{label}</Text>
+                  <Text numberOfLines={1} style={{ fontSize: 9, marginTop: 2,
+                    color: on ? Colors.textInverse : Colors.textMuted }}>
+                    {on ? (dayNames[position] ?? '') : 'Rest'}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
       )}
     </View>
   );
@@ -806,7 +893,7 @@ function VolumeReadout({ volume, planned, target }: {
 // ─── Step 7: name ─────────────────────────────────────────────────────────────
 
 function NameStep({ name, onChange, goal, weeklySets, daysPerWeek, splitName,
-  longestSessionMinutes, error }: {
+  longestSessionMinutes, error, activeProgramName }: {
   name: string;
   onChange: (v: string) => void;
   goal: TrainingGoal;
@@ -815,6 +902,7 @@ function NameStep({ name, onChange, goal, weeklySets, daysPerWeek, splitName,
   splitName: string;
   longestSessionMinutes: number;
   error: string | null;
+  activeProgramName: string | null;
 }) {
   return (
     <View>
@@ -837,6 +925,11 @@ function NameStep({ name, onChange, goal, weeklySets, daysPerWeek, splitName,
           <SummaryRow label="Longest session" value={`~${longestSessionMinutes} min`} />
         </View>
       </View>
+      {activeProgramName && (
+        <InfoCard icon="swap-horizontal-outline" title="This replaces your active program" warning>
+          {`"${activeProgramName}" is currently active. Creating this program will deactivate it immediately — you can switch back anytime from Profile → Programs.`}
+        </InfoCard>
+      )}
       {error && (
         <InfoCard icon="warning-outline" title="Something went wrong" warning>{error}</InfoCard>
       )}

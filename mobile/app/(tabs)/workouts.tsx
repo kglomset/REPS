@@ -81,15 +81,29 @@ export default function WorkoutsScreen() {
         {/* Active program schedule */}
         {program ? (
           <>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between',
-              alignItems: 'center', marginBottom: Spacing.sm }}>
-              <Text style={{ fontSize: FontSize.lg, fontWeight: FontWeight.semibold,
-                color: Colors.textPrimary }}>{program.name}</Text>
-              <View style={{ flexDirection: 'row', gap: 4, alignItems: 'center' }}>
-                <View style={{ width: 8, height: 8, borderRadius: 4,
-                  backgroundColor: Colors.success }} />
-                <Text style={{ fontSize: FontSize.xs, color: Colors.success }}>Active</Text>
+            {/* Banner makes the active program's identity hard to miss — a program
+                switch (e.g. via the guided builder) should never be discovered only
+                by noticing the exercises look unfamiliar. */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
+              backgroundColor: Colors.primaryTint, borderRadius: Radius.lg,
+              padding: Spacing.md, marginBottom: Spacing.md }}>
+              <View style={{ width: 40, height: 40, borderRadius: 20,
+                backgroundColor: Colors.surface, alignItems: 'center', justifyContent: 'center' }}>
+                <Ionicons name="barbell" size={20} color={Colors.primary} />
               </View>
+              <View style={{ flex: 1 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                  <View style={{ width: 7, height: 7, borderRadius: 3.5,
+                    backgroundColor: Colors.success }} />
+                  <Text style={{ fontSize: FontSize.xs, color: Colors.primary,
+                    fontWeight: FontWeight.bold, letterSpacing: 0.4 }}>ACTIVE PROGRAM</Text>
+                </View>
+                <Text style={{ fontSize: FontSize.lg, fontWeight: FontWeight.bold,
+                  color: Colors.textPrimary, marginTop: 1 }}>{program.name}</Text>
+              </View>
+              <TouchableOpacity onPress={() => router.push('/settings')} style={{ padding: 4 }}>
+                <Ionicons name="chevron-forward" size={18} color={Colors.primary} />
+              </TouchableOpacity>
             </View>
 
             {program.workoutTemplates.map((template) => (

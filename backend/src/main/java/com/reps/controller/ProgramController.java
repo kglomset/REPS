@@ -70,6 +70,17 @@ public class ProgramController {
     }
 
     /** Activate a specific program (deactivates all others for this user). */
+    /**
+     * Delete a program. Sessions already logged against it are kept and detached,
+     * so history and progression are not lost.
+     */
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void delete(@AuthenticationPrincipal UserPrincipal principal,
+                       @PathVariable Long id) {
+        programService.deleteProgram(principal.getId(), id);
+    }
+
     @PostMapping("/{id}/activate")
     public ProgramResponse activate(@AuthenticationPrincipal UserPrincipal principal,
                                     @PathVariable Long id) {
