@@ -17,10 +17,16 @@
 --                no remapping needed - this is what preserves the admin
 --                user's logged history across the restructure.
 --
--- Two of the 106 live exercises are remapped to equipment the live name
--- does not literally say, because that is what is actually trained on:
+-- Two of the 106 catalogue exercises (seeded by V8) are remapped to
+-- equipment the live name does not literally say, because that is what is
+-- actually trained on:
 --   'Machine Leg Press'      -> Leg Press      + Keiser
 --   'Stiff Legged Deadlift'  -> Stiff Legged Deadlift + Keiser
+--
+-- A 107th live row, 'Triceps Press Cable Bilateral', isn't part of that
+-- catalogue (not one of V8's 106 inserts) - found only when this migration
+-- first ran against production and it came back unresolved. Mapped
+-- alongside the other 106 below.
 --
 -- Generated + validated offline (uniqueness of every (movement, equipment,
 -- variation) triple, every old name accounted for exactly once, every
@@ -602,6 +608,12 @@ UPDATE exercises SET movement_id = (SELECT id FROM movements WHERE name = 'Side 
 UPDATE exercises SET movement_id = (SELECT id FROM movements WHERE name = 'Sissy Squat'), equipment_id = (SELECT id FROM equipment WHERE slug = 'bodyweight'), variation = NULL, name = 'Bodyweight Sissy Squat' WHERE name = 'Sissy Squat';
 UPDATE exercises SET movement_id = (SELECT id FROM movements WHERE name = 'Calf Raise'), equipment_id = (SELECT id FROM equipment WHERE slug = 'machine'), variation = 'Seated', name = 'Machine Calf Raise (Seated)' WHERE name = 'Sitting Calf Raise';
 UPDATE exercises SET movement_id = (SELECT id FROM movements WHERE name = 'Tricep Press'), equipment_id = (SELECT id FROM equipment WHERE slug = 'ez-bar'), variation = 'Lying', name = 'EZ Bar Tricep Press (Lying)' WHERE name = 'Skull Chrushers';
+-- Not one of the 106 names V8 seeded — found live-only via the first failed
+-- deploy of this migration (reported as unresolved). 'Bilateral' is the
+-- default two-arm cable tricep press, same convention as the Lateral Raise
+-- rows above (Bilateral = no variation suffix; a one-arm version would be
+-- its own movement, as Lateral Raise Unilateral is).
+UPDATE exercises SET movement_id = (SELECT id FROM movements WHERE name = 'Tricep Press'), equipment_id = (SELECT id FROM equipment WHERE slug = 'cable'), variation = NULL, name = 'Cable Tricep Press' WHERE name = 'Triceps Press Cable Bilateral';
 UPDATE exercises SET movement_id = (SELECT id FROM movements WHERE name = 'Squat'), equipment_id = (SELECT id FROM equipment WHERE slug = 'barbell'), variation = NULL, name = 'Barbell Squat' WHERE name = 'Squat';
 UPDATE exercises SET movement_id = (SELECT id FROM movements WHERE name = 'Calf Raise'), equipment_id = (SELECT id FROM equipment WHERE slug = 'machine'), variation = 'Standing', name = 'Machine Calf Raise (Standing)' WHERE name = 'Standing Calf Raise';
 UPDATE exercises SET movement_id = (SELECT id FROM movements WHERE name = 'Calf Raise'), equipment_id = (SELECT id FROM equipment WHERE slug = 'machine'), variation = 'Stiff Legged', name = 'Machine Calf Raise (Stiff Legged)' WHERE name = 'Stiff Legged Calf Raise';
