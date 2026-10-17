@@ -479,6 +479,11 @@ public class ProgramService {
                                 .muscleGroupName(m.getMuscleGroup().getName())
                                 .role(m.getRole()).build())
                         .toList())
+                .movementId(e.getMovement().getId())
+                .movementName(e.getMovement().getName())
+                .equipmentId(e.getEquipment() != null ? e.getEquipment().getId() : null)
+                .equipmentName(e.getEquipment() != null ? e.getEquipment().getName() : null)
+                .variation(e.getVariation())
                 .build();
     }
 }

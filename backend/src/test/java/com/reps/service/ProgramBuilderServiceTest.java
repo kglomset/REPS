@@ -2,6 +2,8 @@ package com.reps.service;
 
 import com.reps.dto.response.ProgramDraftResponse;
 import com.reps.dto.response.SplitOptionResponse;
+import com.reps.entity.Exercise;
+import com.reps.entity.Movement;
 import com.reps.enums.MuscleRole;
 import com.reps.enums.SplitDayType;
 import com.reps.enums.TrainingGoal;
@@ -181,22 +183,41 @@ class ProgramBuilderServiceTest {
     @DisplayName("movement family — equipment variants collapse together")
     class Families {
 
+        /**
+         * Equipment lives on the exercise row, not the movement, since the
+         * exercise/equipment redesign (docs/exercise-equipment-redesign.md) -
+         * two variants "share a family" exactly when they point at the same
+         * Movement, whatever equipment or variation each one carries.
+         */
+        private Exercise variantOf(long movementId, String equipmentHint) {
+            Movement movement = Movement.builder().id(movementId).name("M" + movementId).build();
+            return Exercise.builder()
+                    .movement(movement)
+                    .name(equipmentHint + " M" + movementId)
+                    .build();
+        }
+
         @Test
         void equipmentVariantsShareAFamily() {
-            assertEquals(ProgramBuilderService.movementFamily("Incline Chest Press Dumbbell"),
-                    ProgramBuilderService.movementFamily("Incline Chest Press Barbell"));
-            assertEquals(ProgramBuilderService.movementFamily("Sitting Calf Raise"),
-                    ProgramBuilderService.movementFamily("Standing Calf Raise"));
-            assertEquals(ProgramBuilderService.movementFamily("Upright Row Cable"),
-                    ProgramBuilderService.movementFamily("Upright Row Smith"));
+            assertEquals(
+                    ProgramBuilderService.movementFamily(variantOf(1, "Dumbbell")),
+                    ProgramBuilderService.movementFamily(variantOf(1, "Barbell")));
+            assertEquals(
+                    ProgramBuilderService.movementFamily(variantOf(2, "Sitting")),
+                    ProgramBuilderService.movementFamily(variantOf(2, "Standing")));
+            assertEquals(
+                    ProgramBuilderService.movementFamily(variantOf(3, "Cable")),
+                    ProgramBuilderService.movementFamily(variantOf(3, "Smith")));
         }
 
         @Test
         void genuinelyDifferentMovementsDoNot() {
-            assertNotEquals(ProgramBuilderService.movementFamily("Chest Press Dumbbell"),
-                    ProgramBuilderService.movementFamily("Incline Chest Press Dumbbell"));
-            assertNotEquals(ProgramBuilderService.movementFamily("Pull Up Wide Grip"),
-                    ProgramBuilderService.movementFamily("Pull Down Wide Grip"));
+            assertNotEquals(
+                    ProgramBuilderService.movementFamily(variantOf(4, "Dumbbell")),
+                    ProgramBuilderService.movementFamily(variantOf(5, "Dumbbell")));
+            assertNotEquals(
+                    ProgramBuilderService.movementFamily(variantOf(6, "Bodyweight")),
+                    ProgramBuilderService.movementFamily(variantOf(7, "Bodyweight")));
         }
     }
 

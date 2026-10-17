@@ -14,6 +14,10 @@ export const ENDPOINTS = {
   exercises: {
     list: '/exercises',
     get: (id: number) => `/exercises/${id}`,
+    resolve: '/exercises/resolve',
+  },
+  movements: {
+    list: '/movements',
   },
   workouts: {
     sessions: '/workouts/sessions',

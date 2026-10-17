@@ -14,6 +14,7 @@ import {
   DraftDay, DraftExercise, ProgramResponse,
 } from '@/types';
 import { VolumeSlider, VolumeBand } from '@/components/VolumeSlider';
+import { MovementPickerList } from '@/components/ExercisePicker';
 import { weeklyVolume, formatSets, MuscleVolume } from '@/utils/volume';
 import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/constants/theme';
 
@@ -945,11 +946,19 @@ function AddExerciseModal({ existingIds, onSelect, onClose }: {
   onClose: () => void;
 }) {
   const [search, setSearch] = useState('');
-  const { data: exercises } = useQuery({ queryKey: ['exercises'], queryFn: exercisesApi.list });
+  // A movement already on this day isn't hidden — a second equipment variant
+  // (e.g. pre-fatigue barbell, then machine) is a legitimate add. Only the
+  // exact same resolved exercise gets caught, after resolving.
+  const [duplicateNotice, setDuplicateNotice] = useState<string | null>(null);
 
-  const filtered = (exercises ?? []).filter(
-    (e) => !existingIds.includes(e.id) && e.name.toLowerCase().includes(search.toLowerCase())
-  );
+  const handleResolved = (ex: ExerciseResponse) => {
+    if (existingIds.includes(ex.id)) {
+      setDuplicateNotice(`${ex.name} is already on this day.`);
+      return;
+    }
+    setDuplicateNotice(null);
+    onSelect(ex);
+  };
 
   return (
     <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
@@ -967,30 +976,20 @@ function AddExerciseModal({ existingIds, onSelect, onClose }: {
             backgroundColor: Colors.surfaceMuted, borderRadius: Radius.md,
             paddingHorizontal: 12, borderWidth: 1, borderColor: Colors.border }}>
             <Ionicons name="search" size={16} color={Colors.textMuted} />
-            <TextInput value={search} onChangeText={setSearch}
+            <TextInput value={search}
+              onChangeText={(t) => { setSearch(t); setDuplicateNotice(null); }}
               placeholder="Search exercises…" placeholderTextColor={Colors.textMuted}
               style={{ flex: 1, paddingVertical: 10, fontSize: FontSize.md,
                 color: Colors.textPrimary }} />
           </View>
+          {duplicateNotice && (
+            <Text style={{ fontSize: FontSize.xs, color: Colors.warning, marginTop: 6 }}>
+              {duplicateNotice}
+            </Text>
+          )}
         </View>
         <ScrollView>
-          {filtered.map((ex) => (
-            <TouchableOpacity key={ex.id} onPress={() => onSelect(ex)}
-              style={{ flexDirection: 'row', alignItems: 'center', padding: Spacing.md,
-                borderBottomWidth: 1, borderBottomColor: Colors.border }}>
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: FontSize.md, color: Colors.textPrimary,
-                  fontWeight: FontWeight.medium }}>{ex.name}</Text>
-                <Text style={{ fontSize: FontSize.xs, color: Colors.textMuted, marginTop: 2 }}>
-                  {ex.movementPattern === 'COMPOUND' ? 'Compound' : 'Isolation'}
-                  {' · '}
-                  {ex.muscles.filter((m) => m.role === 'PRIMARY')
-                    .map((m) => m.muscleGroupName).join(', ')}
-                </Text>
-              </View>
-              <Ionicons name="add-circle-outline" size={22} color={Colors.primary} />
-            </TouchableOpacity>
-          ))}
+          <MovementPickerList search={search} onResolved={handleResolved} />
         </ScrollView>
       </SafeAreaView>
     </Modal>

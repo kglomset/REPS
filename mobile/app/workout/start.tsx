@@ -9,13 +9,13 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import DraggableFlatList, { RenderItemParams } from 'react-native-draggable-flatlist';
 import { workoutsApi } from '@/services/api/workouts';
-import { exercisesApi } from '@/services/api/exercises';
 import { useWorkoutStore } from '@/store/useWorkoutStore';
 import {
   SessionExerciseResponse, ExerciseResponse, TrainingMethod,
-  ProgressionSuggestion, ProgressionTrend,
+  ProgressionSuggestion, ProgressionTrend, MovementResponse,
 } from '@/types';
 import { TrendBadge, TrendSheet, trendStyle } from '@/components/TrendBadge';
+import { MovementPickerList } from '@/components/ExercisePicker';
 import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/constants/theme';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -1859,15 +1859,19 @@ function AddExerciseModal({ visible, existingIds, onAdd, onClose }: {
   onClose: () => void;
 }) {
   const [search, setSearch] = useState('');
-  const { data: allExercises } = useQuery({
-    queryKey: ['exercises'],
-    queryFn: exercisesApi.list,
-  });
+  // A movement already in this workout isn't hidden — a second equipment
+  // variant is a legitimate add. Only the exact same resolved exercise is
+  // caught, after resolving.
+  const [duplicateNotice, setDuplicateNotice] = useState<string | null>(null);
 
-  const filtered = (allExercises ?? []).filter(
-    (e) => !existingIds.includes(e.id) &&
-      e.name.toLowerCase().includes(search.toLowerCase())
-  );
+  const handleResolved = (ex: ExerciseResponse) => {
+    if (existingIds.includes(ex.id)) {
+      setDuplicateNotice(`${ex.name} is already in this workout.`);
+      return;
+    }
+    setDuplicateNotice(null);
+    onAdd(ex.id);
+  };
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
@@ -1885,26 +1889,20 @@ function AddExerciseModal({ visible, existingIds, onAdd, onClose }: {
             backgroundColor: Colors.surfaceMuted, borderRadius: Radius.md,
             paddingHorizontal: 12, borderWidth: 1, borderColor: Colors.border }}>
             <Ionicons name="search" size={16} color={Colors.textMuted} />
-            <TextInput value={search} onChangeText={setSearch}
+            <TextInput value={search}
+              onChangeText={(t) => { setSearch(t); setDuplicateNotice(null); }}
               placeholder="Search exercises…" placeholderTextColor={Colors.textMuted}
               style={{ flex: 1, paddingVertical: 10, fontSize: FontSize.md,
                 color: Colors.textPrimary }} />
           </View>
+          {duplicateNotice && (
+            <Text style={{ fontSize: FontSize.xs, color: Colors.warning, marginTop: 6 }}>
+              {duplicateNotice}
+            </Text>
+          )}
         </View>
         <ScrollView>
-          {filtered.map((ex) => (
-            <TouchableOpacity key={ex.id}
-              onPress={() => onAdd(ex.id)}
-              style={{ flexDirection: 'row', alignItems: 'center',
-                padding: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.border }}>
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: FontSize.md, color: Colors.textPrimary,
-                  fontWeight: FontWeight.medium }}>{ex.name}</Text>
-                <MuscleChips muscles={ex.muscles} />
-              </View>
-              <Ionicons name="add-circle-outline" size={22} color={Colors.primary} />
-            </TouchableOpacity>
-          ))}
+          <MovementPickerList search={search} onResolved={handleResolved} />
         </ScrollView>
       </SafeAreaView>
     </Modal>
@@ -1922,27 +1920,26 @@ function SwapExerciseModal({ current, existingIds, onSelect, onClose }: {
   onClose: () => void;
 }) {
   const [search, setSearch] = useState('');
-  const { data: allExercises } = useQuery({
-    queryKey: ['exercises'],
-    queryFn: exercisesApi.list,
-  });
+  const [notice, setNotice] = useState<string | null>(null);
 
   const currentPrimary = new Set(
     current.exercise.muscles.filter((m) => m.role === 'PRIMARY').map((m) => m.muscleGroupId)
   );
-  const sharesPrimary = (ex: { muscles: SessionExerciseResponse['exercise']['muscles'] }) =>
-    ex.muscles.some((m) => m.role === 'PRIMARY' && currentPrimary.has(m.muscleGroupId));
+  const isSimilar = (movement: MovementResponse) =>
+    movement.muscles.some((m) => m.role === 'PRIMARY' && currentPrimary.has(m.muscleGroupId));
 
-  const q = search.toLowerCase();
-  const candidates = (allExercises ?? []).filter(
-    (e) => e.id !== current.exercise.id &&
-      !existingIds.includes(e.id) &&
-      e.name.toLowerCase().includes(q)
-  );
-  const sorted = [...candidates].sort((a, b) => {
-    const rank = (Number(!sharesPrimary(a))) - (Number(!sharesPrimary(b)));
-    return rank !== 0 ? rank : a.name.localeCompare(b.name);
-  });
+  const handleResolved = (ex: ExerciseResponse) => {
+    if (ex.id === current.exercise.id) {
+      setNotice(`${ex.name} is already this slot's exercise.`);
+      return;
+    }
+    if (existingIds.includes(ex.id)) {
+      setNotice(`${ex.name} is already in this workout.`);
+      return;
+    }
+    setNotice(null);
+    onSelect(ex.id);
+  };
 
   return (
     <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
@@ -1965,42 +1962,25 @@ function SwapExerciseModal({ current, existingIds, onSelect, onClose }: {
             backgroundColor: Colors.surfaceMuted, borderRadius: Radius.md,
             paddingHorizontal: 12, borderWidth: 1, borderColor: Colors.border }}>
             <Ionicons name="search" size={16} color={Colors.textMuted} />
-            <TextInput value={search} onChangeText={setSearch}
+            <TextInput value={search}
+              onChangeText={(t) => { setSearch(t); setNotice(null); }}
               placeholder="Search exercises…" placeholderTextColor={Colors.textMuted}
               style={{ flex: 1, paddingVertical: 10, fontSize: FontSize.md,
                 color: Colors.textPrimary }} />
           </View>
+          {notice && (
+            <Text style={{ fontSize: FontSize.xs, color: Colors.warning, marginTop: 6 }}>
+              {notice}
+            </Text>
+          )}
         </View>
         <ScrollView>
-          {sorted.map((ex) => {
-            const similar = sharesPrimary(ex);
-            return (
-              <TouchableOpacity key={ex.id}
-                onPress={() => onSelect(ex.id)}
-                style={{ flexDirection: 'row', alignItems: 'center',
-                  padding: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.border }}>
-                <View style={{ flex: 1 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <Text style={{ fontSize: FontSize.md, color: Colors.textPrimary,
-                      fontWeight: FontWeight.medium }}>{ex.name}</Text>
-                    {similar && (
-                      <View style={{ backgroundColor: Colors.primaryTint, borderRadius: Radius.full,
-                        paddingHorizontal: 8, paddingVertical: 2 }}>
-                        <Text style={{ fontSize: 10, color: Colors.primary,
-                          fontWeight: FontWeight.semibold }}>Similar</Text>
-                      </View>
-                    )}
-                  </View>
-                  <MuscleChips muscles={ex.muscles} />
-                </View>
-                <Ionicons name="swap-horizontal" size={20} color={Colors.primary} />
-              </TouchableOpacity>
-            );
-          })}
-          {sorted.length === 0 && (
-            <Text style={{ fontSize: FontSize.sm, color: Colors.textSecondary,
-              textAlign: 'center', marginTop: Spacing.lg }}>No exercises found.</Text>
-          )}
+          <MovementPickerList
+            search={search}
+            onResolved={handleResolved}
+            isSimilar={isSimilar}
+            emptyLabel="No exercises found."
+          />
         </ScrollView>
       </SafeAreaView>
     </Modal>

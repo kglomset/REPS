@@ -10,8 +10,8 @@ import java.io.Serializable;
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @EqualsAndHashCode
 public class ExerciseMuscleId implements Serializable {
 
-    @Column(name = "exercise_id")
-    private Long exerciseId;
+    @Column(name = "movement_id")
+    private Long movementId;
 
     @Column(name = "muscle_group_id")
     private Long muscleGroupId;

@@ -40,6 +40,40 @@ export interface ExerciseResponse {
   imageUrl?: string;
   muscles: ExerciseMuscleResponse[];
   movementPattern?: MovementPattern;
+  // ─── Movement/equipment split ───
+  movementId: number;
+  movementName: string;
+  equipmentId?: number | null;
+  equipmentName?: string | null;
+  /** Free-text detail — "Seated", "Cuffed", "45 Degree". */
+  variation?: string | null;
+}
+
+export interface EquipmentResponse {
+  id: number;
+  name: string;
+  slug: string;
+}
+
+/**
+ * Step one of the exercise picker. equipmentOptions is a suggestion, not a
+ * constraint — resolving a variant accepts any equipment id.
+ */
+export interface MovementResponse {
+  id: number;
+  name: string;
+  description?: string;
+  cues?: string;
+  imageUrl?: string;
+  movementPattern: MovementPattern;
+  muscles: ExerciseMuscleResponse[];
+  equipmentOptions: EquipmentResponse[];
+}
+
+export interface ResolveExerciseRequest {
+  movementId: number;
+  equipmentId?: number | null;
+  variation?: string | null;
 }
 
 // ─── Programs ─────────────────────────────────────────────────────────────────

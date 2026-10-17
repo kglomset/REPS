@@ -22,7 +22,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
@@ -351,7 +350,7 @@ public class ProgramBuilderService {
                 // Penalties, not bans: calves has exactly one movement family in
                 // the whole library, so a hard block would cap it at three sets a
                 // session however much volume was asked for.
-                String family = movementFamily(candidate.getName());
+                String family = movementFamily(candidate);
                 if (familiesToday.contains(family)) score -= SAME_FAMILY_PENALTY;
                 if (usedInProgram.contains(candidate.getId())) score -= REPEAT_PENALTY;
                 if (familiesInProgram.contains(family)) score -= REPEAT_PENALTY / 2;
@@ -391,8 +390,8 @@ public class ProgramBuilderService {
 
             usedToday.add(best.getId());
             usedInProgram.add(best.getId());
-            familiesToday.add(movementFamily(best.getName()));
-            familiesInProgram.add(movementFamily(best.getName()));
+            familiesToday.add(movementFamily(best));
+            familiesInProgram.add(movementFamily(best));
 
             int[] prescription = prescriptionFor(req.getGoal(), compound);
             picked.add(ProgramDraftResponse.Exercise.builder()
@@ -449,23 +448,16 @@ public class ProgramBuilderService {
     }
 
     /**
-     * Equipment, stance and grip qualifiers. Stripping them collapses an exercise
-     * to its movement family, so a session does not prescribe "Incline Chest
-     * Press Dumbbell" and "Incline Chest Press Barbell" as if they were two
-     * different exercises.
+     * The movement an exercise variant belongs to, regardless of equipment -
+     * used to collapse "Incline Chest Press Dumbbell" and "Incline Chest
+     * Press Barbell" together so a session does not prescribe both as if
+     * they were different exercises. Equipment and variation live on a
+     * separate (movement, equipment, variation) row since the program
+     * builder rework (docs/exercise-equipment-redesign.md), so this is now
+     * just the movement id - no more name-qualifier stripping.
      */
-    private static final List<String> QUALIFIERS = List.of(
-            "barbell", "bardbell", "dumbbell", "smith", "cable", "machine", "ez bar", "trx",
-            "unilateral", "bilateral", "with cuff", "with weight", "supine", "prone",
-            "sitting", "standing", "seated", "wide grip", "narrow grip", "neutral grip",
-            "stiff legged", "overhead", "incline", "decline", "bosu", "hanging", "roll out");
-
-    static String movementFamily(String name) {
-        String family = name.toLowerCase(Locale.ROOT);
-        for (String qualifier : QUALIFIERS) {
-            family = family.replace(qualifier, " ");
-        }
-        return family.replaceAll("\\s+", " ").trim();
+    static String movementFamily(Exercise candidate) {
+        return String.valueOf(candidate.getMovement().getId());
     }
 
     static int setsPerExercise(TrainingGoal goal) {

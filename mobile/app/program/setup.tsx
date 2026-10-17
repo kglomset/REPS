@@ -9,11 +9,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import { programsApi } from '@/services/api/programs';
 import { workoutsApi } from '@/services/api/workouts';
-import { exercisesApi } from '@/services/api/exercises';
 import { FitnessLevel, TrainingGoal, TrainingMethod, ExerciseResponse } from '@/types';
 import {
   weeklyVolume, describeVolume, MuscleVolume, EMPTY_VOLUME,
 } from '@/utils/volume';
+import { MovementPickerList } from '@/components/ExercisePicker';
 import { Colors, Spacing, Radius, FontSize, FontWeight, Shadow } from '@/constants/theme';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -230,11 +230,6 @@ function DiyBuilder({ editProgramId }: { editProgramId?: number }) {
   const [exSearch, setExSearch]           = useState('');
   const [guideOpen, setGuideOpen]         = useState(true);
 
-  const { data: allExercises } = useQuery({
-    queryKey: ['exercises'],
-    queryFn: exercisesApi.list,
-  });
-
   const { mutate: create, isPending } = useMutation({
     mutationFn: () => programsApi.create({
       name: programName,
@@ -411,9 +406,6 @@ function DiyBuilder({ editProgramId }: { editProgramId?: number }) {
     );
   };
 
-  const filtered = (allExercises ?? []).filter((e) =>
-    e.name.toLowerCase().includes(exSearch.toLowerCase())
-  );
 
   // Weekly sets per muscle across all days, on the same rules the guided
   // builder and the backend allocator use: a primary muscle banks the full
@@ -648,32 +640,13 @@ function DiyBuilder({ editProgramId }: { editProgramId?: number }) {
             </View>
           </View>
 
-          {/* Add list */}
-          {filtered.map((ex) => {
-            const added = editingDay.exercises.some((e) => e.exercise.id === ex.id);
-            return (
-              <TouchableOpacity key={ex.id}
-                onPress={() => added
-                  ? removeExercise(editingDay.dayIndex, ex.id)
-                  : addExercise(editingDay.dayIndex, ex)}
-                style={{ flexDirection: 'row', alignItems: 'center',
-                  paddingVertical: 12, paddingHorizontal: Spacing.lg,
-                  borderBottomWidth: 1, borderBottomColor: Colors.border,
-                  backgroundColor: added ? Colors.primaryTint : 'transparent' }}>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: FontSize.md, color: Colors.textPrimary,
-                    fontWeight: FontWeight.medium }}>{ex.name}</Text>
-                  <Text style={{ fontSize: FontSize.xs, color: Colors.textMuted, marginTop: 2 }}>
-                    {ex.muscles.filter((m) => m.role === 'PRIMARY')
-                      .map((m) => m.muscleGroupName).join(', ')}
-                  </Text>
-                </View>
-                <Ionicons
-                  name={added ? 'checkmark-circle' : 'add-circle-outline'}
-                  size={22} color={added ? Colors.primary : Colors.textMuted} />
-              </TouchableOpacity>
-            );
-          })}
+          {/* Add list — picking a movement already on this day is fine (a
+              second equipment variant is a legitimate add); addExercise
+              itself is the only exact-duplicate guard. */}
+          <MovementPickerList
+            search={exSearch}
+            onResolved={(ex) => addExercise(editingDay.dayIndex, ex)}
+          />
         </ScrollView>
       </SafeAreaView>
     );
@@ -1128,10 +1101,9 @@ function GroupControls({ items, exId, onChange }: {
 
 // ─── Reusable exercise list editor (used by standalone builder) ───────────────
 
-function ExerciseRowsEditor({ items, onChange, allExercises, goal }: {
+function ExerciseRowsEditor({ items, onChange, goal }: {
   items: DiyExercise[];
   onChange: (next: DiyExercise[]) => void;
-  allExercises: ExerciseResponse[];
   goal: TrainingGoal;
 }) {
   const [search, setSearch] = useState('');
@@ -1150,9 +1122,6 @@ function ExerciseRowsEditor({ items, onChange, allExercises, goal }: {
     [arr[idx], arr[j]] = [arr[j], arr[idx]];
     onChange(arr);
   };
-
-  const filtered = allExercises.filter((e) =>
-    e.name.toLowerCase().includes(search.toLowerCase()));
 
   return (
     <>
@@ -1267,26 +1236,9 @@ function ExerciseRowsEditor({ items, onChange, allExercises, goal }: {
         </View>
       </View>
 
-      {filtered.map((ex) => {
-        const added = items.some((e) => e.exercise.id === ex.id);
-        return (
-          <TouchableOpacity key={ex.id} onPress={() => (added ? remove(ex.id) : add(ex))}
-            style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12,
-              paddingHorizontal: Spacing.lg, borderBottomWidth: 1, borderBottomColor: Colors.border,
-              backgroundColor: added ? Colors.primaryTint : 'transparent' }}>
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: FontSize.md, color: Colors.textPrimary,
-                fontWeight: FontWeight.medium }}>{ex.name}</Text>
-              <Text style={{ fontSize: FontSize.xs, color: Colors.textMuted, marginTop: 2 }}>
-                {ex.muscles.filter((m) => m.role === 'PRIMARY')
-                  .map((m) => m.muscleGroupName).join(', ')}
-              </Text>
-            </View>
-            <Ionicons name={added ? 'checkmark-circle' : 'add-circle-outline'}
-              size={22} color={added ? Colors.primary : Colors.textMuted} />
-          </TouchableOpacity>
-        );
-      })}
+      {/* A movement already selected isn't hidden — a second equipment
+          variant is a legitimate add. Remove via the selected-list icon above. */}
+      <MovementPickerList search={search} onResolved={add} />
     </>
   );
 }
@@ -1297,11 +1249,6 @@ function StandaloneBuilder() {
   const queryClient = useQueryClient();
   const [name, setName] = useState('Standalone Workout');
   const [exercises, setExercises] = useState<DiyExercise[]>([]);
-
-  const { data: allExercises } = useQuery({
-    queryKey: ['exercises'],
-    queryFn: exercisesApi.list,
-  });
 
   const { mutate: create, isPending } = useMutation({
     mutationFn: () => workoutsApi.createStandalone({
@@ -1350,7 +1297,6 @@ function StandaloneBuilder() {
         <ExerciseRowsEditor
           items={exercises}
           onChange={setExercises}
-          allExercises={allExercises ?? []}
           goal="HYPERTROPHY"
         />
       </ScrollView>

@@ -13,9 +13,9 @@ public class ExerciseMuscle {
     private ExerciseMuscleId id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @MapsId("exerciseId")
-    @JoinColumn(name = "exercise_id")
-    private Exercise exercise;
+    @MapsId("movementId")
+    @JoinColumn(name = "movement_id")
+    private Movement movement;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @MapsId("muscleGroupId")

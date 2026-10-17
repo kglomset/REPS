@@ -7,9 +7,13 @@ import java.util.List;
 
 public interface ExerciseRepository extends JpaRepository<Exercise, Long> {
 
-    @Query("SELECT DISTINCT e FROM Exercise e LEFT JOIN FETCH e.muscles m LEFT JOIN FETCH m.muscleGroup " +
+    @Query("SELECT DISTINCT e FROM Exercise e " +
+           "LEFT JOIN FETCH e.movement mv LEFT JOIN FETCH mv.muscles m LEFT JOIN FETCH m.muscleGroup " +
+           "LEFT JOIN FETCH e.equipment " +
            "WHERE e.createdBy IS NULL OR e.createdBy.id = :userId")
     List<Exercise> findAllAvailableForUser(Long userId);
 
     List<Exercise> findByCreatedByIsNull();
+
+    List<Exercise> findByMovementId(Long movementId);
 }
