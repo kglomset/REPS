@@ -568,7 +568,10 @@ UPDATE exercises SET movement_id = (SELECT id FROM movements WHERE name = 'Later
 UPDATE exercises SET movement_id = (SELECT id FROM movements WHERE name = 'Leg Curl'), equipment_id = (SELECT id FROM equipment WHERE slug = 'machine'), variation = 'Prone', name = 'Machine Leg Curl (Prone)' WHERE name = 'Leg Curl Prone';
 UPDATE exercises SET movement_id = (SELECT id FROM movements WHERE name = 'Leg Curl'), equipment_id = (SELECT id FROM equipment WHERE slug = 'machine'), variation = 'Sitting', name = 'Machine Leg Curl (Sitting)' WHERE name = 'Leg Curl Sitting';
 UPDATE exercises SET movement_id = (SELECT id FROM movements WHERE name = 'Leg Curl'), equipment_id = (SELECT id FROM equipment WHERE slug = 'trx'), variation = NULL, name = 'TRX Leg Curl' WHERE name = 'Leg Curl TRX';
-UPDATE exercises SET movement_id = (SELECT id FROM movements WHERE name = 'Leg Extension'), equipment_id = (SELECT id FROM equipment WHERE slug = 'machine'), variation = NULL, name = 'Machine Leg Extension' WHERE name = 'Leg Extension';
+-- Live row's literal name kept its original casing ('Leg extension',
+-- lowercase e) from V8's insert — the movement itself is seeded as
+-- 'Leg Extension' above; only the old-name match below needs the original.
+UPDATE exercises SET movement_id = (SELECT id FROM movements WHERE name = 'Leg Extension'), equipment_id = (SELECT id FROM equipment WHERE slug = 'machine'), variation = NULL, name = 'Machine Leg Extension' WHERE name = 'Leg extension';
 UPDATE exercises SET movement_id = (SELECT id FROM movements WHERE name = 'Leg Raise'), equipment_id = (SELECT id FROM equipment WHERE slug = 'bodyweight'), variation = NULL, name = 'Bodyweight Leg Raise' WHERE name = 'Leg Raise';
 UPDATE exercises SET movement_id = (SELECT id FROM movements WHERE name = 'Leg Press'), equipment_id = (SELECT id FROM equipment WHERE slug = 'keiser'), variation = NULL, name = 'Keiser Leg Press' WHERE name = 'Machine Leg Press';
 UPDATE exercises SET movement_id = (SELECT id FROM movements WHERE name = 'Narrow Grip Bench Press'), equipment_id = (SELECT id FROM equipment WHERE slug = 'barbell'), variation = NULL, name = 'Barbell Narrow Grip Bench Press' WHERE name = 'Narrow Grip Bench Press';
@@ -620,14 +623,20 @@ UPDATE exercises SET movement_id = (SELECT id FROM movements WHERE name = 'Row')
 UPDATE exercises SET movement_id = (SELECT id FROM movements WHERE name = 'Row'), equipment_id = (SELECT id FROM equipment WHERE slug = 'machine'), variation = 'Wide Grip', name = 'Machine Row (Wide Grip)' WHERE name = 'Wide Grip Machine Row';
 
 -- Every live row must have resolved to a movement - otherwise a template or
--- session still has history pointing at an exercise with no identity.
+-- session still has history pointing at an exercise with no identity. Names
+-- are listed in the exception itself (rather than just the count) so a
+-- failure here is diagnosable straight from the deploy log, with no need to
+-- query the database directly.
 DO $$
 DECLARE
     unresolved INTEGER;
+    names TEXT;
 BEGIN
-    SELECT COUNT(*) INTO unresolved FROM exercises WHERE movement_id IS NULL;
+    SELECT COUNT(*), string_agg(quote_literal(name), ', ')
+      INTO unresolved, names
+      FROM exercises WHERE movement_id IS NULL;
     IF unresolved > 0 THEN
-        RAISE EXCEPTION '% exercises did not resolve to a movement', unresolved;
+        RAISE EXCEPTION '% exercises did not resolve to a movement: %', unresolved, names;
     END IF;
 END $$;
 
