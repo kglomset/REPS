@@ -1,5 +1,12 @@
 <script>
 (function() {
+  // Immediate, synchronous canary: if this never becomes visible when
+  // opening the installed WebAPK, no JS in this document executed at all
+  // (rules out an app bug entirely, points at Chrome/Android's WebAPK load path).
+  try {
+    document.title = 'REPS-DIAG-v2';
+    document.documentElement.style.background = '#ff6a00';
+  } catch (e) {}
   var overlay = null;
   var errors = [];
   function ensureOverlay() {
@@ -49,6 +56,6 @@
     if (!bodyHasContent && !bodyHasVisuals) {
       render();
     }
-  }, 8000);
+  }, 4000);
 })();
 </script>
