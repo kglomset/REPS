@@ -40,9 +40,10 @@ public class ExerciseService {
 
     /**
      * Step two/three of the exercise picker: movement + equipment (+ an
-     * optional free-text variation) resolved to an actual exercise id. The
-     * (movement, equipment, variation) space is never pre-seeded in full -
-     * most combinations are created here, the first time anyone picks them.
+     * optional curated variation chip and unilateral toggle) resolved to an
+     * actual exercise id. The (movement, equipment, variation) space is
+     * never pre-seeded in full - most combinations are created here, the
+     * first time anyone picks them.
      *
      * Created globally (not scoped to the requesting user): picking "Cable
      * Leg Extension" for the first time means it should exist for everyone
@@ -56,7 +57,7 @@ public class ExerciseService {
                 ? equipmentRepo.findById(req.getEquipmentId())
                         .orElseThrow(() -> new NoSuchElementException("Equipment not found: " + req.getEquipmentId()))
                 : null;
-        String variation = normalize(req.getVariation());
+        String variation = combineVariation(normalize(req.getVariation()), Boolean.TRUE.equals(req.getUnilateral()));
 
         Exercise exercise = exerciseRepo.findByMovementId(movement.getId()).stream()
                 .filter(e -> Objects.equals(idOf(e.getEquipment()), idOf(equipment)))
@@ -70,6 +71,20 @@ public class ExerciseService {
                         .build()));
 
         return programService.exerciseToResponse(exercise);
+    }
+
+    /**
+     * Folds the unilateral toggle into the variation text using the same
+     * convention already established for historical exercises merged in V16
+     * ("Unilateral", or "Unilateral, Cuffed" when a chip is also picked) -
+     * this is what makes the toggle part of exercise identity, not just
+     * metadata: it changes which exercise row gets resolved/logged.
+     */
+    static String combineVariation(String variation, boolean unilateral) {
+        if (!unilateral) {
+            return variation;
+        }
+        return (variation == null || variation.isBlank()) ? "Unilateral" : "Unilateral, " + variation;
     }
 
     static String buildDisplayName(Movement movement, Equipment equipment, String variation) {

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ActivityIndicator, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { exercisesApi, movementsApi } from '@/services/api/exercises';
@@ -9,12 +9,13 @@ import { Colors, Spacing, Radius, FontSize, FontWeight } from '@/constants/theme
 // ─── Exercise picker ──────────────────────────────────────────────────────────
 // Equipment used to be baked into the exercise name ("Shoulder Press Smith",
 // "...Barbell", "...Dumbbell"), so picking an exercise was one flat search.
-// Now it's two steps: pick the movement, then its equipment (plus an optional
-// free-text detail — "Seated", "Cuffed"). This is the one place that two-step
-// flow lives; every screen that lets the user add or swap an exercise
-// (guided builder, DIY builder, active-workout add/swap) renders this list
-// and gets back a resolved ExerciseResponse exactly like the old flat picker
-// did, so nothing downstream of "an exercise got added" had to change.
+// Now it's two steps: pick the movement, then its equipment, a curated
+// variation chip, and (where offered) a unilateral toggle. This is the one
+// place that flow lives; every screen that lets the user add or swap an
+// exercise (guided builder, DIY builder, active-workout add/swap) renders
+// this list and gets back a resolved ExerciseResponse exactly like the old
+// flat picker did, so nothing downstream of "an exercise got added" had to
+// change.
 //
 // A movement already added to the workout is NOT hidden here — a different
 // equipment variant of the same movement (barbell bench pre-fatigue, then
@@ -92,16 +93,30 @@ function MovementRow({ movement, expanded, onToggle, onResolved, similar }: {
   const [equipmentId, setEquipmentId] = useState<number | null>(
     movement.equipmentOptions.length === 1 ? movement.equipmentOptions[0].id : null
   );
-  const [variation, setVariation] = useState('');
+  const [variation, setVariation] = useState<string | null>(null);
+  const [unilateral, setUnilateral] = useState(false);
+
+  const selectedEquipment = movement.equipmentOptions.find((eq) => eq.id === equipmentId);
+  const canToggleUnilateral = !!selectedEquipment?.canBeUnilateral;
+
+  const selectEquipment = (id: number) => {
+    setEquipmentId(id);
+    const opt = movement.equipmentOptions.find((eq) => eq.id === id);
+    if (!opt?.canBeUnilateral) {
+      setUnilateral(false);
+    }
+  };
 
   const { mutate: resolve, isPending } = useMutation({
     mutationFn: () => exercisesApi.resolve({
       movementId: movement.id,
       equipmentId,
-      variation: variation.trim() || null,
+      variation,
+      unilateral,
     }),
     onSuccess: (ex) => {
-      setVariation('');
+      setVariation(null);
+      setUnilateral(false);
       onResolved(ex);
     },
   });
@@ -145,7 +160,7 @@ function MovementRow({ movement, expanded, onToggle, onResolved, similar }: {
                 {movement.equipmentOptions.map((eq) => {
                   const active = equipmentId === eq.id;
                   return (
-                    <TouchableOpacity key={eq.id} onPress={() => setEquipmentId(eq.id)}
+                    <TouchableOpacity key={eq.id} onPress={() => selectEquipment(eq.id)}
                       style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: Radius.full,
                         backgroundColor: active ? Colors.primary : Colors.surface,
                         borderWidth: 1, borderColor: active ? Colors.primary : Colors.border }}>
@@ -158,19 +173,37 @@ function MovementRow({ movement, expanded, onToggle, onResolved, similar }: {
             </View>
           )}
 
-          <View>
-            <Text style={{ fontSize: FontSize.xs, color: Colors.textMuted,
-              fontWeight: FontWeight.medium, marginBottom: 6 }}>DETAIL (OPTIONAL)</Text>
-            <TextInput
-              value={variation}
-              onChangeText={setVariation}
-              placeholder="e.g. Seated, Cuffed, 45 Degree"
-              placeholderTextColor={Colors.textMuted}
-              style={{ backgroundColor: Colors.surface, borderRadius: Radius.md,
-                borderWidth: 1, borderColor: Colors.border, paddingHorizontal: 10,
-                paddingVertical: 8, fontSize: FontSize.sm, color: Colors.textPrimary }}
-            />
-          </View>
+          {movement.variations.length > 0 && (
+            <View>
+              <Text style={{ fontSize: FontSize.xs, color: Colors.textMuted,
+                fontWeight: FontWeight.medium, marginBottom: 6 }}>VARIATION (OPTIONAL)</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                {movement.variations.map((v) => {
+                  const active = variation === v;
+                  return (
+                    <TouchableOpacity key={v} onPress={() => setVariation(active ? null : v)}
+                      style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: Radius.full,
+                        backgroundColor: active ? Colors.primary : Colors.surface,
+                        borderWidth: 1, borderColor: active ? Colors.primary : Colors.border }}>
+                      <Text style={{ fontSize: FontSize.sm, fontWeight: FontWeight.medium,
+                        color: active ? Colors.textInverse : Colors.textPrimary }}>{v}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+          )}
+
+          {canToggleUnilateral && (
+            <TouchableOpacity
+              onPress={() => setUnilateral(!unilateral)}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4 }}>
+              <Ionicons name={unilateral ? 'checkbox' : 'square-outline'} size={20}
+                color={unilateral ? Colors.primary : Colors.textMuted} />
+              <Text style={{ fontSize: FontSize.sm, color: Colors.textPrimary,
+                fontWeight: FontWeight.medium }}>Unilateral (one side at a time)</Text>
+            </TouchableOpacity>
+          )}
 
           <TouchableOpacity
             onPress={() => resolve()}

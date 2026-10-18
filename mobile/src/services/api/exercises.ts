@@ -1,6 +1,6 @@
 import client from './client';
 import { ENDPOINTS } from '@/constants/api';
-import { EquipmentResponse, ExerciseResponse, MovementResponse, ResolveExerciseRequest } from '@/types';
+import { EquipmentOptionResponse, EquipmentResponse, ExerciseResponse, MovementResponse, ResolveExerciseRequest } from '@/types';
 
 export const exercisesApi = {
   list: () =>
@@ -23,4 +23,4 @@ export const movementsApi = {
     client.get<MovementResponse[]>(ENDPOINTS.movements.list).then((r) => r.data),
 };
 
-export type { EquipmentResponse, MovementResponse };
+export type { EquipmentResponse, EquipmentOptionResponse, MovementResponse };

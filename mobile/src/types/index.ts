@@ -56,8 +56,18 @@ export interface EquipmentResponse {
 }
 
 /**
- * Step one of the exercise picker. equipmentOptions is a suggestion, not a
- * constraint — resolving a variant accepts any equipment id.
+ * One equipment chip the picker offers for a movement. canBeUnilateral
+ * drives whether the "Unilateral" toggle is shown once this equipment is
+ * picked - e.g. true for Dumbbell Row, false for Barbell Bent Over Rows.
+ */
+export interface EquipmentOptionResponse extends EquipmentResponse {
+  canBeUnilateral: boolean;
+}
+
+/**
+ * Step one of the exercise picker. equipmentOptions and variations are both
+ * suggestions, not constraints — resolving a variant accepts any equipment
+ * id, though the picker no longer offers free-text variation input.
  */
 export interface MovementResponse {
   id: number;
@@ -67,13 +77,18 @@ export interface MovementResponse {
   imageUrl?: string;
   movementPattern: MovementPattern;
   muscles: ExerciseMuscleResponse[];
-  equipmentOptions: EquipmentResponse[];
+  equipmentOptions: EquipmentOptionResponse[];
+  /** Curated variation chips - empty when this movement has none. */
+  variations: string[];
 }
 
 export interface ResolveExerciseRequest {
   movementId: number;
   equipmentId?: number | null;
+  /** One of the movement's curated variation chips. Blank/null is none. */
   variation?: string | null;
+  /** Whether the "Unilateral" toggle was on - part of exercise identity. */
+  unilateral?: boolean;
 }
 
 // ─── Programs ─────────────────────────────────────────────────────────────────

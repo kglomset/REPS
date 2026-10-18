@@ -1,10 +1,10 @@
 package com.reps.service;
 
-import com.reps.dto.response.EquipmentResponse;
+import com.reps.dto.response.EquipmentOptionResponse;
 import com.reps.dto.response.ExerciseMuscleResponse;
 import com.reps.dto.response.MovementResponse;
-import com.reps.entity.Equipment;
 import com.reps.entity.Movement;
+import com.reps.entity.MovementEquipmentOption;
 import com.reps.repository.MovementRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -45,15 +45,20 @@ public class MovementService {
                                 .build())
                         .toList())
                 .equipmentOptions(m.getEquipmentOptions().stream()
-                        .map(MovementService::equipmentToResponse)
-                        .sorted(Comparator.comparing(EquipmentResponse::getName))
+                        .map(MovementService::equipmentOptionToResponse)
+                        .sorted(Comparator.comparing(EquipmentOptionResponse::getName))
                         .toList())
+                // Already ordered by sort_order via @OrderColumn - no re-sort.
+                .variations(List.copyOf(m.getVariations()))
                 .build();
     }
 
-    static EquipmentResponse equipmentToResponse(Equipment e) {
-        return EquipmentResponse.builder()
-                .id(e.getId()).name(e.getName()).slug(e.getSlug())
+    static EquipmentOptionResponse equipmentOptionToResponse(MovementEquipmentOption opt) {
+        return EquipmentOptionResponse.builder()
+                .id(opt.getEquipment().getId())
+                .name(opt.getEquipment().getName())
+                .slug(opt.getEquipment().getSlug())
+                .canBeUnilateral(opt.isCanBeUnilateral())
                 .build();
     }
 }

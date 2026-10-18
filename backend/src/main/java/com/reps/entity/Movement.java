@@ -63,17 +63,35 @@ public class Movement {
 
     /**
      * Which equipment the exercise picker offers for this movement (step two,
-     * after the movement itself is picked in step one). Not an exhaustive
-     * enum of "valid" equipment — picking something outside this list still
-     * works (see {@code ExerciseService.resolveVariant}), it just won't be
-     * suggested as a chip.
+     * after the movement itself is picked in step one), each carrying its own
+     * {@code canBeUnilateral} flag. Not an exhaustive enum of "valid"
+     * equipment — picking something outside this list still works (see
+     * {@code ExerciseService.resolveVariant}), it just won't be suggested as
+     * a chip.
+     *
+     * This is its own EAGER collection, loaded via its own per-movement
+     * select - like {@code muscles}, it must never be join-fetched together
+     * with another List-typed ("bag") collection in the same query, or
+     * Hibernate re-appends rows once per sibling in the cross product (see
+     * MovementRepository's query comment for the full story).
      */
-    @ManyToMany(fetch = FetchType.EAGER)
-    @JoinTable(
-            name = "movement_equipment",
-            joinColumns = @JoinColumn(name = "movement_id"),
-            inverseJoinColumns = @JoinColumn(name = "equipment_id")
-    )
+    @OneToMany(mappedBy = "movement", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     @Builder.Default
-    private List<Equipment> equipmentOptions = new ArrayList<>();
+    private List<MovementEquipmentOption> equipmentOptions = new ArrayList<>();
+
+    /**
+     * Curated variation chips the picker offers for this movement (e.g.
+     * "Narrow Grip", "Wide Grip" for Row) - replaces what used to be a free
+     * text field on the exercise. Movements with none simply hide the
+     * variation section, same as a movement with no equipment options today.
+     *
+     * Also its own EAGER collection for the same reason as equipmentOptions
+     * above - never join-fetched alongside another bag.
+     */
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "movement_variations", joinColumns = @JoinColumn(name = "movement_id"))
+    @OrderColumn(name = "sort_order")
+    @Column(name = "variation", nullable = false, length = 100)
+    @Builder.Default
+    private List<String> variations = new ArrayList<>();
 }
