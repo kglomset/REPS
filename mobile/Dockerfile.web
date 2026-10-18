@@ -15,6 +15,16 @@ ENV EXPO_PUBLIC_API_URL=$EXPO_PUBLIC_API_URL
 
 RUN npx expo export --platform web
 
+# ── Diagnostic overlay ────────────────────────────────────────────────────────
+# If the app fails to boot on a client (JS error, a 404'd chunk from a stale
+# cache, etc.) the page would otherwise just be blank with nothing to debug.
+# This inlines error/rejection listeners plus an 8s "nothing rendered" check as
+# the very first thing in <head>, before the app's own bundle script tag, so it
+# can catch failures the app's own JS never got a chance to report.
+RUN sed -i '/<head>/r diag-overlay.html' dist/index.html \
+ && grep -q '__reps_diag_overlay' dist/index.html \
+ || (echo "diagnostic overlay injection failed" && exit 1)
+
 # ── PWA install icons ─────────────────────────────────────────────────────────
 # Metro web export only emits a small favicon, so an installed PWA upscales it
 # and looks pixelated. Copy the manifest + high-res icons into the web root and
